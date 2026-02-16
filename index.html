@@ -473,6 +473,7 @@ button:disabled {
   </button>
   <div class="menu-items">
     <a class="menu-item" id="menu-statistics">Statistics</a>
+    <a class="menu-item" id="menu-update">Update</a>
     <a class="menu-item" id="menu-install" style="display:none">Install App</a>
     <div class="menu-item menu-ios" id="menu-ios" style="display:none">
       Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
@@ -511,6 +512,7 @@ button:disabled {
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const menuCloseBtn = document.getElementById('menu-close');
   const menuStatistics = document.getElementById('menu-statistics');
+  const menuUpdateBtn = document.getElementById('menu-update');
   const menuInstallBtn = document.getElementById('menu-install');
   const menuIosEl = document.getElementById('menu-ios');
   const statsCloseBtn = document.getElementById('stats-close');
@@ -1070,6 +1072,22 @@ button:disabled {
         break;
       }
     }
+  });
+
+  // --- Force update ---
+  menuUpdateBtn.addEventListener('click', async () => {
+    menuUpdateBtn.textContent = 'Updating\u2026';
+    menuUpdateBtn.style.opacity = '0.4';
+    menuUpdateBtn.style.pointerEvents = 'none';
+    try {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    } catch (e) {}
+    try {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(function (r) { return r.unregister(); }));
+    } catch (e) {}
+    location.reload();
   });
 
   // --- Install prompt ---

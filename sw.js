@@ -29,25 +29,54 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-
-  // Network-first for same-origin navigation and index.html
-  // so the app always picks up new versions
-  if (e.request.mode === 'navigate' || url.pathname.endsWith('/index.html')) {
+  if (e.request.mode === 'navigate') {
+    // Serve cached page instantly
     e.respondWith(
-      fetch(e.request)
-        .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-          return response;
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          // First visit with no cache - fetch and cache
+          return fetch(e.request).then(resp => {
+            cache.put(e.request, resp.clone());
+            return resp;
+          });
         })
-        .catch(() => caches.match(e.request))
+      )
     );
+    // Check for updates in the background
+    e.waitUntil(checkForUpdate());
     return;
   }
 
-  // Cache-first for everything else (images, audio, scripts)
+  // Cache-first for all other assets
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
+
+async function checkForUpdate() {
+  try {
+    var cache = await caches.open(CACHE_NAME);
+    var cached = await cache.match('./index.html');
+    if (!cached) return;
+
+    var fresh = await fetch('./index.html', { cache: 'no-cache' });
+    if (!fresh.ok) return;
+
+    var freshText = await fresh.clone().text();
+    var cachedText = await cached.text();
+
+    if (freshText === cachedText) return;
+
+    // index.html changed — refresh all cached assets
+    await Promise.all(
+      PRECACHE_URLS.map(url =>
+        fetch(url, { cache: 'no-cache' })
+          .then(r => { if (r.ok) return cache.put(url, r); })
+          .catch(() => {})
+      )
+    );
+  } catch (e) {
+    // Offline or fetch error — skip update
+  }
+}
