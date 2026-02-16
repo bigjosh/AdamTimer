@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Meditation Timer</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 200;
+  -webkit-font-smoothing: antialiased;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) env(safe-area-inset-right, 20px) env(safe-area-inset-bottom, 20px) env(safe-area-inset-left, 20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.screen.fade-in {
+  animation: fadeIn 250ms ease forwards;
+}
+
+.screen.fade-out {
+  animation: fadeOut 250ms ease forwards;
+  pointer-events: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Start Screen */
+#start-screen {
+  background: #000;
+  gap: 30px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.setting label {
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.setting input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 200;
+  font-size: 32px;
+  text-align: center;
+  padding: 10px;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.setting input::-webkit-outer-spin-button,
+.setting input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.setting input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 30px;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 300;
+  font-size: 18px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 14px 48px;
+  cursor: pointer;
+  transition: border-color 0.2s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+#start-btn {
+  margin-top: 10px;
+}
+
+.install-btn {
+  margin-top: 6px;
+  font-size: 14px;
+  padding: 10px 32px;
+  opacity: 0.5;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.install-btn:active {
+  opacity: 0.8;
+}
+
+.ios-instructions {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 300;
+  opacity: 0.4;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Timer Screen */
+#timer-screen {
+  background-color: #000;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#timer-display {
+  font-size: 72px;
+  font-weight: 200;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+#timer-display.heartbeat {
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.timer-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.timer-buttons button {
+  min-width: 160px;
+}
+
+/* Completion Screen */
+#complete-screen {
+  background: #000;
+  gap: 30px;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 200;
+  opacity: 0.8;
+}
+
+.stats .total-time {
+  font-size: 48px;
+  font-weight: 200;
+  opacity: 1;
+  margin-bottom: 8px;
+}
+
+.log-prompt {
+  font-size: 20px;
+  font-weight: 300;
+  margin-top: 10px;
+}
+
+.log-buttons {
+  display: flex;
+  gap: 20px;
+}
+
+.log-buttons button {
+  min-width: 100px;
+}
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen" class="screen active">
+  <div class="settings-group">
+    <div class="setting">
+      <label for="lead-in">Lead In (min)</label>
+      <input type="number" id="lead-in" min="0" max="999" value="0" inputmode="numeric">
+    </div>
+    <div class="setting">
+      <label for="meditation">Meditation (min)</label>
+      <input type="number" id="meditation" min="0" max="999" value="20" inputmode="numeric">
+    </div>
+    <div class="setting">
+      <label for="lead-out">Lead Out (min)</label>
+      <input type="number" id="lead-out" min="0" max="999" value="0" inputmode="numeric">
+    </div>
+  </div>
+  <button id="start-btn" disabled>Start</button>
+  <button id="install-btn" class="install-btn" style="display:none">Install App</button>
+  <div id="ios-instructions" class="ios-instructions" style="display:none">
+    Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
+  </div>
+</div>
+
+<!-- Timer Screen -->
+<div id="timer-screen" class="screen">
+  <div id="timer-display">00:00</div>
+  <div class="timer-buttons">
+    <button id="pause-btn">Pause</button>
+    <button id="end-btn">End</button>
+  </div>
+</div>
+
+<!-- Completion Screen -->
+<div id="complete-screen" class="screen">
+  <div class="stats">
+    <div class="total-time" id="stat-total">00:00</div>
+    <div id="stat-leadin"></div>
+    <div id="stat-meditation"></div>
+    <div id="stat-leadout"></div>
+  </div>
+  <div class="log-prompt">Log this session?</div>
+  <div class="log-buttons">
+    <button id="log-yes">Yes</button>
+    <button id="log-no">No</button>
+  </div>
+</div>
+
+<audio id="audio-knock" preload="auto" src="knock.mp3"></audio>
+<audio id="audio-gong" preload="auto" src="gong.mp3"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // --- Elements ---
+  const startScreen = document.getElementById('start-screen');
+  const timerScreen = document.getElementById('timer-screen');
+  const completeScreen = document.getElementById('complete-screen');
+  const screens = [startScreen, timerScreen, completeScreen];
+
+  const leadInInput = document.getElementById('lead-in');
+  const meditationInput = document.getElementById('meditation');
+  const leadOutInput = document.getElementById('lead-out');
+  const startBtn = document.getElementById('start-btn');
+
+  const timerDisplay = document.getElementById('timer-display');
+  const pauseBtn = document.getElementById('pause-btn');
+  const endBtn = document.getElementById('end-btn');
+
+  const statTotal = document.getElementById('stat-total');
+  const statLeadIn = document.getElementById('stat-leadin');
+  const statMeditation = document.getElementById('stat-meditation');
+  const statLeadOut = document.getElementById('stat-leadout');
+  const logYes = document.getElementById('log-yes');
+  const logNo = document.getElementById('log-no');
+
+  const audioKnock = document.getElementById('audio-knock');
+  const audioGong = document.getElementById('audio-gong');
+
+  let noSleep;
+  try { noSleep = new NoSleep(); } catch (e) { /* ignore */ }
+
+  // --- State ---
+  const phases = ['LEADIN', 'MEDITATION', 'LEADOUT'];
+  let currentPhase = null;
+  let phaseIndex = 0;
+  let phaseDurations = {}; // seconds per phase
+  let endTime = 0;       // wall-clock ms target
+  let paused = false;
+  let pausedRemaining = 0; // ms remaining when paused
+  let timerRAF = null;
+  let sessionData = {};
+
+  // --- Helpers ---
+  function fmt(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function clampInput(el) {
+    let v = parseInt(el.value, 10);
+    if (isNaN(v) || v < 0) v = 0;
+    if (v > 999) v = 999;
+    v = Math.floor(v);
+    el.value = v;
+    return v;
+  }
+
+  // --- localStorage persistence ---
+  function loadSettings() {
+    try {
+      const s = localStorage.getItem('meditation-settings');
+      if (s) {
+        const d = JSON.parse(s);
+        if (d.leadIn != null) leadInInput.value = d.leadIn;
+        if (d.meditation != null) meditationInput.value = d.meditation;
+        if (d.leadOut != null) leadOutInput.value = d.leadOut;
+      }
+    } catch (e) { /* private browsing */ }
+  }
+
+  function saveSettings() {
+    try {
+      localStorage.setItem('meditation-settings', JSON.stringify({
+        leadIn: clampInput(leadInInput),
+        meditation: clampInput(meditationInput),
+        leadOut: clampInput(leadOutInput)
+      }));
+    } catch (e) { /* private browsing */ }
+  }
+
+  function loadHistory() {
+    try {
+      const h = localStorage.getItem('meditation-history');
+      return h ? JSON.parse(h) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveSession(data) {
+    try {
+      const history = loadHistory();
+      history.push(data);
+      localStorage.setItem('meditation-history', JSON.stringify(history));
+    } catch (e) { /* ignore */ }
+  }
+
+  // --- Validation ---
+  function validateInputs() {
+    const li = clampInput(leadInInput);
+    const med = clampInput(meditationInput);
+    const lo = clampInput(leadOutInput);
+    const total = li + med + lo;
+    startBtn.disabled = total === 0;
+  }
+
+  // --- Screen transitions ---
+  function showScreen(target) {
+    return new Promise(resolve => {
+      const current = screens.find(s => s.classList.contains('active'));
+
+      if (current && current !== target) {
+        current.classList.add('fade-out');
+        current.classList.remove('fade-in');
+        setTimeout(() => {
+          current.classList.remove('active', 'fade-out');
+          current.style.opacity = '';
+          target.classList.add('active', 'fade-in');
+          setTimeout(() => {
+            target.classList.remove('fade-in');
+            resolve();
+          }, 250);
+        }, 250);
+      } else {
+        target.classList.add('active', 'fade-in');
+        setTimeout(() => {
+          target.classList.remove('fade-in');
+          resolve();
+        }, 250);
+      }
+    });
+  }
+
+  // --- Audio ---
+  function primeAudio() {
+    [audioKnock, audioGong].forEach(a => {
+      a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+    });
+  }
+
+  function playSound(audioEl) {
+    audioEl.currentTime = 0;
+    audioEl.play().catch(() => {});
+  }
+
+  // --- Timer ---
+  function startPhaseTimer(durationSec) {
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    timerDisplay.classList.remove('heartbeat');
+    endTime = Date.now() + durationSec * 1000;
+    tick();
+  }
+
+  function tick() {
+    if (paused) return;
+
+    const now = Date.now();
+    const remaining = Math.max(0, endTime - now);
+    const secs = Math.ceil(remaining / 1000);
+
+    timerDisplay.textContent = fmt(secs);
+
+    if (remaining <= 0) {
+      timerDisplay.textContent = '0:00';
+      onPhaseComplete();
+      return;
+    }
+
+    timerRAF = requestAnimationFrame(tick);
+  }
+
+  function onPhaseComplete() {
+    cancelAnimationFrame(timerRAF);
+
+    // Play sound for completed phase
+    if (currentPhase === 'LEADIN') {
+      playSound(audioKnock);
+    } else if (currentPhase === 'MEDITATION') {
+      playSound(audioGong);
+    } else if (currentPhase === 'LEADOUT') {
+      playSound(audioKnock);
+    }
+
+    // Brief pause for sound, then advance
+    setTimeout(() => advancePhase(), 400);
+  }
+
+  function advancePhase() {
+    phaseIndex++;
+
+    // Find next non-zero phase
+    while (phaseIndex < phases.length && phaseDurations[phases[phaseIndex]] === 0) {
+      phaseIndex++;
+    }
+
+    if (phaseIndex >= phases.length) {
+      // All phases done
+      finishSession(false);
+      return;
+    }
+
+    currentPhase = phases[phaseIndex];
+    transitionTimerPhase();
+  }
+
+  function transitionTimerPhase() {
+    // Fade out current background
+    timerScreen.classList.add('fade-out');
+    timerScreen.classList.remove('fade-in');
+
+    setTimeout(() => {
+      // Change background
+      setTimerBackground(currentPhase);
+      timerScreen.classList.remove('fade-out');
+      timerScreen.classList.add('fade-in');
+
+      setTimeout(() => {
+        timerScreen.classList.remove('fade-in');
+      }, 250);
+
+      startPhaseTimer(phaseDurations[currentPhase]);
+    }, 250);
+  }
+
+  function setTimerBackground(phase) {
+    if (phase === 'MEDITATION') {
+      timerScreen.style.backgroundImage = 'url(sea.jpg)';
+    } else {
+      timerScreen.style.backgroundImage = 'url(sand.jpg)';
+    }
+  }
+
+  // --- Session flow ---
+  function startSession() {
+    startBtn.disabled = true;
+
+    const li = clampInput(leadInInput);
+    let med = clampInput(meditationInput);
+    const lo = clampInput(leadOutInput);
+
+    // Default meditation to 20 if all zeros handled by validation,
+    // but if meditation specifically is 0/NaN and others exist, keep it 0
+    if (li + med + lo === 0) return;
+
+    phaseDurations = {
+      LEADIN: li * 60,
+      MEDITATION: med * 60,
+      LEADOUT: lo * 60
+    };
+
+    sessionData = {
+      date: new Date().toISOString(),
+      leadIn: li,
+      meditation: med,
+      leadOut: lo,
+      totalMinutes: li + med + lo,
+      completedFull: false
+    };
+
+    // Prime audio on user gesture
+    primeAudio();
+
+    // Enable wake lock
+    try { noSleep && noSleep.enable(); } catch (e) { /* ignore */ }
+
+    // Find first non-zero phase
+    phaseIndex = 0;
+    while (phaseIndex < phases.length && phaseDurations[phases[phaseIndex]] === 0) {
+      phaseIndex++;
+    }
+
+    if (phaseIndex >= phases.length) return; // shouldn't happen due to validation
+
+    currentPhase = phases[phaseIndex];
+    setTimerBackground(currentPhase);
+
+    showScreen(timerScreen).then(() => {
+      startPhaseTimer(phaseDurations[currentPhase]);
+    });
+  }
+
+  function finishSession(early) {
+    cancelAnimationFrame(timerRAF);
+    paused = false;
+    timerDisplay.classList.remove('heartbeat');
+
+    try { noSleep && noSleep.disable(); } catch (e) { /* ignore */ }
+
+    sessionData.completedFull = !early;
+
+    // Build stats
+    statTotal.textContent = fmt(sessionData.totalMinutes * 60);
+    statLeadIn.textContent = sessionData.leadIn > 0 ? 'Lead in: ' + sessionData.leadIn + ' min' : '';
+    statMeditation.textContent = sessionData.meditation > 0 ? 'Meditation: ' + sessionData.meditation + ' min' : '';
+    statLeadOut.textContent = sessionData.leadOut > 0 ? 'Lead out: ' + sessionData.leadOut + ' min' : '';
+
+    showScreen(completeScreen);
+  }
+
+  // --- Pause ---
+  function togglePause() {
+    if (paused) {
+      // Resume
+      paused = false;
+      endTime = Date.now() + pausedRemaining;
+      pauseBtn.textContent = 'Pause';
+      timerDisplay.classList.remove('heartbeat');
+      tick();
+    } else {
+      // Pause
+      paused = true;
+      cancelAnimationFrame(timerRAF);
+      pausedRemaining = Math.max(0, endTime - Date.now());
+      pauseBtn.textContent = 'Resume';
+      timerDisplay.classList.add('heartbeat');
+    }
+  }
+
+  // --- Event listeners ---
+  [leadInInput, meditationInput, leadOutInput].forEach(input => {
+    input.addEventListener('input', () => {
+      validateInputs();
+      saveSettings();
+    });
+    input.addEventListener('blur', () => {
+      clampInput(input);
+      validateInputs();
+      saveSettings();
+    });
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (startBtn.disabled) return;
+    startSession();
+  });
+
+  pauseBtn.addEventListener('click', togglePause);
+
+  endBtn.addEventListener('click', () => {
+    finishSession(true);
+  });
+
+  logYes.addEventListener('click', () => {
+    saveSession(sessionData);
+    showScreen(startScreen).then(() => {
+      startBtn.disabled = false;
+      validateInputs();
+    });
+  });
+
+  logNo.addEventListener('click', () => {
+    showScreen(startScreen).then(() => {
+      startBtn.disabled = false;
+      validateInputs();
+    });
+  });
+
+  // --- Install prompt ---
+  const installBtn = document.getElementById('install-btn');
+  const iosInstructions = document.getElementById('ios-instructions');
+  let deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.style.display = '';
+  });
+
+  installBtn.addEventListener('click', () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(result => {
+      deferredInstallPrompt = null;
+      if (result.outcome === 'accepted') {
+        installBtn.style.display = 'none';
+      }
+    });
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installBtn.style.display = 'none';
+    deferredInstallPrompt = null;
+  });
+
+  // iOS detection — no install prompt API, show manual instructions
+  (function () {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true;
+    if (isIOS && !isStandalone) {
+      iosInstructions.style.display = '';
+    }
+  })();
+
+  // --- Init ---
+  loadSettings();
+  validateInputs();
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
