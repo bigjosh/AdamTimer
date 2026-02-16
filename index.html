@@ -149,27 +149,6 @@ button:disabled {
   margin-top: 10px;
 }
 
-.install-btn {
-  margin-top: 6px;
-  font-size: 14px;
-  padding: 10px 32px;
-  opacity: 0.5;
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.install-btn:active {
-  opacity: 0.8;
-}
-
-.ios-instructions {
-  margin-top: 6px;
-  font-size: 13px;
-  font-weight: 300;
-  opacity: 0.4;
-  text-align: center;
-  line-height: 1.6;
-}
-
 .volume-control {
   display: flex;
   align-items: center;
@@ -283,12 +262,162 @@ button:disabled {
 .log-buttons button {
   min-width: 100px;
 }
+
+/* Hamburger & Close buttons */
+.hamburger, .close-btn {
+  position: absolute;
+  top: env(safe-area-inset-top, 20px);
+  right: env(safe-area-inset-right, 20px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: #fff;
+  padding: 10px;
+  cursor: pointer;
+  opacity: 0.6;
+  z-index: 10;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 16px;
+}
+
+.hamburger:active, .close-btn:active {
+  opacity: 1;
+}
+
+/* Menu Screen */
+#menu-screen {
+  background: #000;
+}
+
+.menu-items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+}
+
+.menu-item {
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  color: #fff;
+  opacity: 0.8;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu-item:active {
+  opacity: 1;
+}
+
+.menu-item.menu-ios {
+  font-size: 13px;
+  font-weight: 300;
+  opacity: 0.4;
+  cursor: default;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Stats Screen */
+#stats-screen {
+  background: #000;
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 50px);
+  padding-bottom: 40px;
+}
+
+.stats-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 30px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 15px;
+  font-weight: 200;
+}
+
+.stat-label {
+  opacity: 0.6;
+}
+
+.stat-value {
+  font-weight: 300;
+  text-align: right;
+}
+
+.stats-date-picker {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-weight: 200;
+  font-size: 16px;
+  padding: 10px 14px;
+  outline: none;
+  color-scheme: dark;
+}
+
+.stats-date-picker:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.session-entry {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+}
+
+.session-entry-date {
+  font-size: 14px;
+  font-weight: 300;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.session-entry-details {
+  font-size: 13px;
+  font-weight: 200;
+  opacity: 0.5;
+  line-height: 1.5;
+}
 </style>
 </head>
 <body>
 
 <!-- Start Screen -->
 <div id="start-screen" class="screen active">
+  <button class="hamburger" id="hamburger-btn" aria-label="Menu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
   <div class="settings-group">
     <div class="setting">
       <label for="lead-in">Lead In (min)</label>
@@ -304,10 +433,6 @@ button:disabled {
     </div>
   </div>
   <button id="start-btn" disabled>Start</button>
-  <button id="install-btn" class="install-btn" style="display:none">Install App</button>
-  <div id="ios-instructions" class="ios-instructions" style="display:none">
-    Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
-  </div>
   <div class="volume-control">
     <svg class="volume-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="vol-wave-1" d="M15.54 8.46a5 5 0 010 7.07"/><path id="vol-wave-2" d="M19.07 4.93a10 10 0 010 14.14"/></svg>
     <input type="range" id="volume" min="0" max="100" value="80">
@@ -338,6 +463,34 @@ button:disabled {
   </div>
 </div>
 
+<!-- Menu Screen -->
+<div id="menu-screen" class="screen">
+  <button class="close-btn" id="menu-close" aria-label="Close">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
+  <div class="menu-items">
+    <a class="menu-item" id="menu-statistics">Statistics</a>
+    <a class="menu-item" id="menu-install" style="display:none">Install App</a>
+    <div class="menu-item menu-ios" id="menu-ios" style="display:none">
+      Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Screen -->
+<div id="stats-screen" class="screen">
+  <button class="close-btn" id="stats-close" aria-label="Close">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
+  <div class="stats-summary" id="stats-summary"></div>
+  <input type="date" class="stats-date-picker" id="stats-date-picker">
+  <div class="session-list" id="session-list"></div>
+</div>
+
 <audio id="audio-knock" preload="auto" src="knock.mp3"></audio>
 <audio id="audio-gong" preload="auto" src="gong.mp3"></audio>
 
@@ -350,7 +503,19 @@ button:disabled {
   const startScreen = document.getElementById('start-screen');
   const timerScreen = document.getElementById('timer-screen');
   const completeScreen = document.getElementById('complete-screen');
-  const screens = [startScreen, timerScreen, completeScreen];
+  const menuScreen = document.getElementById('menu-screen');
+  const statsScreen = document.getElementById('stats-screen');
+  const screens = [startScreen, timerScreen, completeScreen, menuScreen, statsScreen];
+
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const menuCloseBtn = document.getElementById('menu-close');
+  const menuStatistics = document.getElementById('menu-statistics');
+  const menuInstallBtn = document.getElementById('menu-install');
+  const menuIosEl = document.getElementById('menu-ios');
+  const statsCloseBtn = document.getElementById('stats-close');
+  const statsDatePicker = document.getElementById('stats-date-picker');
+  const sessionListEl = document.getElementById('session-list');
+  const statsSummaryEl = document.getElementById('stats-summary');
 
   const leadInInput = document.getElementById('lead-in');
   const meditationInput = document.getElementById('meditation');
@@ -437,6 +602,143 @@ button:disabled {
       history.push(data);
       localStorage.setItem('meditation-history', JSON.stringify(history));
     } catch (e) { /* ignore */ }
+  }
+
+  // --- Statistics ---
+  function toLocalDateStr(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  function formatDuration(minutes) {
+    var h = Math.floor(minutes / 60);
+    var m = minutes % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+  }
+
+  function formatDateNice(dateStr) {
+    var d = new Date(dateStr + 'T12:00:00');
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+
+  function computeStats(history) {
+    var totalSessions = history.length;
+
+    var totalMeditationMin = 0;
+    history.forEach(function (s) {
+      totalMeditationMin += (s.meditation || 0);
+    });
+
+    var now = new Date();
+    var cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 14);
+    var recentMeditationMin = 0;
+    history.forEach(function (s) {
+      if (new Date(s.date) >= cutoff) {
+        recentMeditationMin += (s.meditation || 0);
+      }
+    });
+
+    var uniqueDates = [];
+    var seen = {};
+    history.forEach(function (s) {
+      var ds = toLocalDateStr(new Date(s.date));
+      if (!seen[ds]) { seen[ds] = true; uniqueDates.push(ds); }
+    });
+    uniqueDates.sort();
+
+    // Current streak: walk backwards from today
+    var currentStreak = 0;
+    var check = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    while (true) {
+      var cs = toLocalDateStr(check);
+      if (seen[cs]) {
+        currentStreak++;
+        check.setDate(check.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    // Longest streak
+    var longestStreak = 0;
+    var longestEnd = '';
+    if (uniqueDates.length > 0) {
+      var streak = 1;
+      var streakEnd = uniqueDates[0];
+      for (var i = 1; i < uniqueDates.length; i++) {
+        var prev = new Date(uniqueDates[i - 1] + 'T12:00:00');
+        var curr = new Date(uniqueDates[i] + 'T12:00:00');
+        var diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+          streak++;
+          streakEnd = uniqueDates[i];
+        } else {
+          if (streak > longestStreak) {
+            longestStreak = streak;
+            longestEnd = streakEnd;
+          }
+          streak = 1;
+          streakEnd = uniqueDates[i];
+        }
+      }
+      if (streak > longestStreak) {
+        longestStreak = streak;
+        longestEnd = streakEnd;
+      }
+    }
+
+    return {
+      totalSessions: totalSessions,
+      totalMeditationMin: totalMeditationMin,
+      recentMeditationMin: recentMeditationMin,
+      currentStreak: currentStreak,
+      longestStreak: longestStreak,
+      longestEnd: longestEnd
+    };
+  }
+
+  function renderStatsSummary(stats) {
+    var html = '';
+    html += '<div class="stat-row"><span class="stat-label">Total Sessions</span><span class="stat-value">' + stats.totalSessions + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Total Meditation</span><span class="stat-value">' + formatDuration(stats.totalMeditationMin) + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Last 14 Days</span><span class="stat-value">' + formatDuration(stats.recentMeditationMin) + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Current Streak</span><span class="stat-value">' + stats.currentStreak + (stats.currentStreak === 1 ? ' day' : ' days') + '</span></div>';
+    var longestText = stats.longestStreak + (stats.longestStreak === 1 ? ' day' : ' days');
+    if (stats.longestEnd) longestText += ' (' + formatDateNice(stats.longestEnd) + ')';
+    html += '<div class="stat-row"><span class="stat-label">Longest Streak</span><span class="stat-value">' + longestText + '</span></div>';
+    statsSummaryEl.innerHTML = html;
+  }
+
+  function renderSessionList(history) {
+    var sorted = history.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+    var html = '';
+    sorted.forEach(function (s) {
+      var d = new Date(s.date);
+      var dateStr = toLocalDateStr(d);
+      var timeStr = d.toLocaleString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      });
+      var medMin = s.meditation || 0;
+      var totalMin = s.totalMinutes || 0;
+      var status = s.completedFull ? 'Completed' : 'Ended early';
+
+      html += '<div class="session-entry" data-date="' + dateStr + '">';
+      html += '<div class="session-entry-date">' + timeStr + '</div>';
+      html += '<div class="session-entry-details">';
+      html += 'Meditation: ' + medMin + ' min &middot; Total: ' + totalMin + ' min &middot; ' + status;
+      html += '</div></div>';
+    });
+
+    if (sorted.length === 0) {
+      html = '<div class="session-entry-details" style="text-align:center;opacity:0.4">No sessions logged yet</div>';
+    }
+
+    sessionListEl.innerHTML = html;
   }
 
   // --- Validation ---
@@ -735,30 +1037,62 @@ button:disabled {
     });
   });
 
+  // --- Menu navigation ---
+  hamburgerBtn.addEventListener('click', () => {
+    showScreen(menuScreen);
+  });
+
+  menuCloseBtn.addEventListener('click', () => {
+    showScreen(startScreen);
+  });
+
+  statsCloseBtn.addEventListener('click', () => {
+    showScreen(startScreen);
+  });
+
+  menuStatistics.addEventListener('click', () => {
+    var history = loadHistory();
+    var stats = computeStats(history);
+    renderStatsSummary(stats);
+    renderSessionList(history);
+    statsDatePicker.value = '';
+    showScreen(statsScreen);
+  });
+
+  statsDatePicker.addEventListener('change', () => {
+    var target = statsDatePicker.value;
+    if (!target) return;
+    var entries = sessionListEl.querySelectorAll('.session-entry');
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].dataset.date === target) {
+        entries[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      }
+    }
+  });
+
   // --- Install prompt ---
-  const installBtn = document.getElementById('install-btn');
-  const iosInstructions = document.getElementById('ios-instructions');
   let deferredInstallPrompt = null;
 
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    installBtn.style.display = '';
+    menuInstallBtn.style.display = '';
   });
 
-  installBtn.addEventListener('click', () => {
+  menuInstallBtn.addEventListener('click', () => {
     if (!deferredInstallPrompt) return;
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then(result => {
       deferredInstallPrompt = null;
       if (result.outcome === 'accepted') {
-        installBtn.style.display = 'none';
+        menuInstallBtn.style.display = 'none';
       }
     });
   });
 
   window.addEventListener('appinstalled', () => {
-    installBtn.style.display = 'none';
+    menuInstallBtn.style.display = 'none';
     deferredInstallPrompt = null;
   });
 
@@ -767,7 +1101,7 @@ button:disabled {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.navigator.standalone === true;
     if (isIOS && !isStandalone) {
-      iosInstructions.style.display = '';
+      menuIosEl.style.display = '';
     }
   })();
 
