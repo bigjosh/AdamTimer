@@ -46,11 +46,11 @@ html, body {
 }
 
 .screen.fade-in {
-  animation: fadeIn 250ms ease forwards;
+  animation: fadeIn 500ms ease forwards;
 }
 
 .screen.fade-out {
-  animation: fadeOut 250ms ease forwards;
+  animation: fadeOut 500ms ease forwards;
   pointer-events: none;
 }
 
@@ -170,6 +170,50 @@ button:disabled {
   line-height: 1.6;
 }
 
+.volume-control {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.6;
+}
+
+.volume-icon {
+  flex-shrink: 0;
+}
+
+#volume {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1px;
+  outline: none;
+}
+
+#volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: none;
+}
+
+#volume::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: none;
+}
+
 /* Timer Screen */
 #timer-screen {
   background-color: #000;
@@ -267,6 +311,10 @@ button:disabled {
   <button id="install-btn" class="install-btn" style="display:none">Install App</button>
   <div id="ios-instructions" class="ios-instructions" style="display:none">
     Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
+  </div>
+  <div class="volume-control">
+    <svg class="volume-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="vol-wave-1" d="M15.54 8.46a5 5 0 010 7.07"/><path id="vol-wave-2" d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+    <input type="range" id="volume" min="0" max="100" value="80">
   </div>
 </div>
 
@@ -405,6 +453,8 @@ button:disabled {
   }
 
   // --- Screen transitions ---
+  var FADE_MS = 500;
+
   function showScreen(target) {
     return new Promise(resolve => {
       const current = screens.find(s => s.classList.contains('active'));
@@ -419,22 +469,52 @@ button:disabled {
           setTimeout(() => {
             target.classList.remove('fade-in');
             resolve();
-          }, 250);
-        }, 250);
+          }, FADE_MS);
+        }, FADE_MS);
       } else {
         target.classList.add('active', 'fade-in');
         setTimeout(() => {
           target.classList.remove('fade-in');
           resolve();
-        }, 250);
+        }, FADE_MS);
       }
     });
   }
 
+  // --- Volume ---
+  const volumeSlider = document.getElementById('volume');
+  const volWave1 = document.getElementById('vol-wave-1');
+  const volWave2 = document.getElementById('vol-wave-2');
+
+  function applyVolume(v) {
+    var vol = v / 100;
+    audioKnock.volume = vol;
+    audioGong.volume = vol;
+    // Update icon waves visibility
+    volWave1.style.opacity = v > 0 ? 1 : 0;
+    volWave2.style.opacity = v > 40 ? 1 : 0;
+  }
+
+  function loadVolume() {
+    try {
+      var v = localStorage.getItem('meditation-volume');
+      if (v !== null) { volumeSlider.value = v; }
+    } catch (e) {}
+    applyVolume(Number(volumeSlider.value));
+  }
+
+  volumeSlider.addEventListener('input', function () {
+    var v = Number(volumeSlider.value);
+    applyVolume(v);
+    try { localStorage.setItem('meditation-volume', v); } catch (e) {}
+  });
+
   // --- Audio ---
   function primeAudio() {
     [audioKnock, audioGong].forEach(a => {
-      a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+      var savedVol = a.volume;
+      a.volume = 0;
+      a.play().then(() => { a.pause(); a.currentTime = 0; a.volume = savedVol; }).catch(() => { a.volume = savedVol; });
     });
   }
 
@@ -510,17 +590,19 @@ button:disabled {
     timerScreen.classList.remove('fade-in');
 
     setTimeout(() => {
-      // Change background
+      // Set new time and background while invisible
       setTimerBackground(currentPhase);
+      timerDisplay.textContent = fmt(phaseDurations[currentPhase]);
+
       timerScreen.classList.remove('fade-out');
       timerScreen.classList.add('fade-in');
 
       setTimeout(() => {
         timerScreen.classList.remove('fade-in');
-      }, 250);
+      }, FADE_MS);
 
       startPhaseTimer(phaseDurations[currentPhase]);
-    }, 250);
+    }, FADE_MS);
   }
 
   function setTimerBackground(phase) {
@@ -574,6 +656,7 @@ button:disabled {
 
     currentPhase = phases[phaseIndex];
     setTimerBackground(currentPhase);
+    timerDisplay.textContent = fmt(phaseDurations[currentPhase]);
 
     showScreen(timerScreen).then(() => {
       startPhaseTimer(phaseDurations[currentPhase]);
@@ -694,6 +777,7 @@ button:disabled {
 
   // --- Init ---
   loadSettings();
+  loadVolume();
   validateInputs();
 
   // Register service worker
