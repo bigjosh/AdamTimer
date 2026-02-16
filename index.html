@@ -429,7 +429,7 @@ button:disabled {
       <input type="number" id="meditation" min="0" max="999" value="20" inputmode="numeric">
     </div>
     <div class="setting">
-      <label for="lead-out">Lead Out (min)</label>
+      <label for="lead-out">Come Out (min)</label>
       <input type="number" id="lead-out" min="0" max="999" value="0" inputmode="numeric">
     </div>
   </div>
@@ -840,10 +840,14 @@ button:disabled {
     const remaining = Math.max(0, endTime - now);
     const secs = Math.ceil(remaining / 1000);
 
-    timerDisplay.textContent = fmt(secs);
+    if (currentPhase === 'LEADOUT') {
+      timerDisplay.textContent = fmt(phaseDurations[currentPhase] - secs);
+    } else {
+      timerDisplay.textContent = fmt(secs);
+    }
 
     if (remaining <= 0) {
-      timerDisplay.textContent = '0:00';
+      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(phaseDurations[currentPhase]) : '0:00';
       onPhaseComplete();
       return;
     }
@@ -893,7 +897,7 @@ button:disabled {
     setTimeout(() => {
       // Set new time and background while invisible
       setTimerBackground(currentPhase);
-      timerDisplay.textContent = fmt(phaseDurations[currentPhase]);
+      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0) : fmt(phaseDurations[currentPhase]);
 
       timerScreen.classList.remove('fade-out');
       timerScreen.classList.add('fade-in');
@@ -914,7 +918,7 @@ button:disabled {
       timerScreen.style.backgroundImage = 'url(sea.jpg)';
       timerScreen.style.backgroundColor = '#000';
     } else {
-      timerScreen.style.backgroundImage = 'url(sand.jpg)';
+      timerScreen.style.backgroundImage = 'url(sea.jpg)';
       timerScreen.style.backgroundColor = '#000';
     }
   }
@@ -962,7 +966,7 @@ button:disabled {
 
     currentPhase = phases[phaseIndex];
     setTimerBackground(currentPhase);
-    timerDisplay.textContent = fmt(phaseDurations[currentPhase]);
+    timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0) : fmt(phaseDurations[currentPhase]);
 
     showScreen(timerScreen).then(() => {
       startPhaseTimer(phaseDurations[currentPhase]);
@@ -982,7 +986,7 @@ button:disabled {
     statTotal.textContent = fmt(sessionData.totalMinutes * 60);
     statLeadIn.textContent = sessionData.leadIn > 0 ? 'Lead in: ' + sessionData.leadIn + ' min' : '';
     statMeditation.textContent = sessionData.meditation > 0 ? 'Meditation: ' + sessionData.meditation + ' min' : '';
-    statLeadOut.textContent = sessionData.leadOut > 0 ? 'Lead out: ' + sessionData.leadOut + ' min' : '';
+    statLeadOut.textContent = sessionData.leadOut > 0 ? 'Come out: ' + sessionData.leadOut + ' min' : '';
 
     showScreen(completeScreen);
   }
