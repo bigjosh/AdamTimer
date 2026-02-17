@@ -123,7 +123,7 @@ html, body {
 .preset-buttons {
   display: flex;
   gap: 6px;
-  justify-content: center;
+  width: 100%;
   margin-top: 4px;
 }
 
@@ -133,14 +133,15 @@ html, body {
   padding: 12px 0;
   flex: 1;
   border-radius: 10px;
-  border-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   letter-spacing: 0;
   text-transform: none;
-  opacity: 0.4;
+  opacity: 0.7;
 }
 
 .preset-btn:active {
-  opacity: 0.8;
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 button {
@@ -450,8 +451,8 @@ button:disabled {
         <button type="button" class="preset-btn" data-add="15">+15m</button>
         <button type="button" class="preset-btn" data-add="5">+5m</button>
         <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
-        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
     <div class="setting">
@@ -461,8 +462,8 @@ button:disabled {
         <button type="button" class="preset-btn" data-add="15">+15m</button>
         <button type="button" class="preset-btn" data-add="5">+5m</button>
         <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
-        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
     <div class="setting">
@@ -472,8 +473,8 @@ button:disabled {
         <button type="button" class="preset-btn" data-add="15">+15m</button>
         <button type="button" class="preset-btn" data-add="5">+5m</button>
         <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
-        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
   </div>
@@ -625,7 +626,7 @@ button:disabled {
     let v = parseFloat(el.dataset.value);
     if (isNaN(v) || v < 0) v = 0;
     if (v > 999) v = 999;
-    v = Math.round(v * 4) / 4; // round to nearest 15s
+    v = Math.round(v * 6) / 6; // round to nearest 10s
     el.dataset.value = v;
     el.value = formatTimeDisplay(v);
     return v;
@@ -1076,7 +1077,9 @@ button:disabled {
       if (btn.dataset.clear !== undefined) {
         input.dataset.value = 0;
       } else {
-        input.dataset.value = parseFloat(input.dataset.value || 0) + parseFloat(btn.dataset.add);
+        var addVal = btn.dataset.add;
+        var addMin = addVal.endsWith('s') ? parseFloat(addVal) / 60 : parseFloat(addVal);
+        input.dataset.value = parseFloat(input.dataset.value || 0) + addMin;
       }
       clampInput(input);
       validateInputs();
