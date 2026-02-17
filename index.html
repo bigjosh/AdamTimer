@@ -120,6 +120,29 @@ html, body {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
+.preset-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.preset-btn {
+  font-size: 15px;
+  font-weight: 300;
+  padding: 12px 0;
+  flex: 1;
+  border-radius: 10px;
+  border-color: rgba(255, 255, 255, 0.1);
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.4;
+}
+
+.preset-btn:active {
+  opacity: 0.8;
+}
+
 button {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -421,16 +444,37 @@ button:disabled {
   </button>
   <div class="settings-group">
     <div class="setting">
-      <label for="lead-in">Lead In (min)</label>
-      <input type="number" id="lead-in" min="0" max="999" value="0" inputmode="numeric">
+      <label for="lead-in">Lead In</label>
+      <input type="text" id="lead-in" readonly data-value="0" value="0">
+      <div class="preset-buttons">
+        <button type="button" class="preset-btn" data-add="15">+15m</button>
+        <button type="button" class="preset-btn" data-add="5">+5m</button>
+        <button type="button" class="preset-btn" data-add="1">+1m</button>
+        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
+        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+      </div>
     </div>
     <div class="setting">
-      <label for="meditation">Meditation (min)</label>
-      <input type="number" id="meditation" min="0" max="999" value="20" inputmode="numeric">
+      <label for="meditation">Meditation</label>
+      <input type="text" id="meditation" readonly data-value="20" value="20m">
+      <div class="preset-buttons">
+        <button type="button" class="preset-btn" data-add="15">+15m</button>
+        <button type="button" class="preset-btn" data-add="5">+5m</button>
+        <button type="button" class="preset-btn" data-add="1">+1m</button>
+        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
+        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+      </div>
     </div>
     <div class="setting">
-      <label for="lead-out">Come Out (min)</label>
-      <input type="number" id="lead-out" min="0" max="999" value="0" inputmode="numeric">
+      <label for="lead-out">Come Out</label>
+      <input type="text" id="lead-out" readonly data-value="0" value="0">
+      <div class="preset-buttons">
+        <button type="button" class="preset-btn" data-add="15">+15m</button>
+        <button type="button" class="preset-btn" data-add="5">+5m</button>
+        <button type="button" class="preset-btn" data-add="1">+1m</button>
+        <button type="button" class="preset-btn" data-add="0.25">+15s</button>
+        <button type="button" class="preset-btn" data-clear>CLEAR</button>
+      </div>
     </div>
   </div>
   <button id="start-btn" disabled>Start</button>
@@ -551,18 +595,39 @@ button:disabled {
   let sessionData = {};
 
   // --- Helpers ---
-  function fmt(totalSeconds) {
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
+  function fmt(totalSeconds, forceHours) {
+    totalSeconds = Math.round(totalSeconds);
+    if (forceHours || totalSeconds >= 3600) {
+      var h = Math.floor(totalSeconds / 3600);
+      var m = Math.floor((totalSeconds % 3600) / 60);
+      var s = totalSeconds % 60;
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+    var m = Math.floor(totalSeconds / 60);
+    var s = totalSeconds % 60;
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   }
 
+  function formatTimeDisplay(minutes) {
+    if (minutes === 0) return '0';
+    var totalSec = Math.round(minutes * 60);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    var parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0) parts.push(m + 'm');
+    if (s > 0) parts.push(s + 's');
+    return parts.join(' ');
+  }
+
   function clampInput(el) {
-    let v = parseInt(el.value, 10);
+    let v = parseFloat(el.dataset.value);
     if (isNaN(v) || v < 0) v = 0;
     if (v > 999) v = 999;
-    v = Math.floor(v);
-    el.value = v;
+    v = Math.round(v * 4) / 4; // round to nearest 15s
+    el.dataset.value = v;
+    el.value = formatTimeDisplay(v);
     return v;
   }
 
@@ -572,9 +637,9 @@ button:disabled {
       const s = localStorage.getItem('meditation-settings');
       if (s) {
         const d = JSON.parse(s);
-        if (d.leadIn != null) leadInInput.value = d.leadIn;
-        if (d.meditation != null) meditationInput.value = d.meditation;
-        if (d.leadOut != null) leadOutInput.value = d.leadOut;
+        if (d.leadIn != null) leadInInput.dataset.value = d.leadIn;
+        if (d.meditation != null) meditationInput.dataset.value = d.meditation;
+        if (d.leadOut != null) leadOutInput.dataset.value = d.leadOut;
       }
     } catch (e) { /* private browsing */ }
   }
@@ -837,14 +902,15 @@ button:disabled {
     const remaining = Math.max(0, endTime - now);
     const secs = Math.ceil(remaining / 1000);
 
+    var useHours = phaseDurations[currentPhase] >= 3600;
     if (currentPhase === 'LEADOUT') {
-      timerDisplay.textContent = fmt(phaseDurations[currentPhase] - secs);
+      timerDisplay.textContent = fmt(phaseDurations[currentPhase] - secs, useHours);
     } else {
-      timerDisplay.textContent = fmt(secs);
+      timerDisplay.textContent = fmt(secs, useHours);
     }
 
     if (remaining <= 0) {
-      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(phaseDurations[currentPhase]) : '0:00';
+      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(phaseDurations[currentPhase], useHours) : fmt(0, useHours);
       onPhaseComplete();
       return;
     }
@@ -894,7 +960,7 @@ button:disabled {
     setTimeout(() => {
       // Set new time and background while invisible
       setTimerBackground(currentPhase);
-      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0) : fmt(phaseDurations[currentPhase]);
+      timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0, phaseDurations[currentPhase] >= 3600) : fmt(phaseDurations[currentPhase]);
 
       timerScreen.classList.remove('fade-out');
       timerScreen.classList.add('fade-in');
@@ -963,7 +1029,7 @@ button:disabled {
 
     currentPhase = phases[phaseIndex];
     setTimerBackground(currentPhase);
-    timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0) : fmt(phaseDurations[currentPhase]);
+    timerDisplay.textContent = currentPhase === 'LEADOUT' ? fmt(0, phaseDurations[currentPhase] >= 3600) : fmt(phaseDurations[currentPhase]);
 
     showScreen(timerScreen).then(() => {
       startPhaseTimer(phaseDurations[currentPhase]);
@@ -1003,6 +1069,21 @@ button:disabled {
       timerDisplay.classList.add('heartbeat');
     }
   }
+
+  // --- Preset buttons ---
+  document.querySelectorAll('.preset-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = btn.closest('.setting').querySelector('input');
+      if (btn.dataset.clear !== undefined) {
+        input.dataset.value = 0;
+      } else {
+        input.dataset.value = parseFloat(input.dataset.value || 0) + parseFloat(btn.dataset.add);
+      }
+      clampInput(input);
+      validateInputs();
+      saveSettings();
+    });
+  });
 
   // --- Event listeners ---
   [leadInInput, meditationInput, leadOutInput].forEach(input => {
