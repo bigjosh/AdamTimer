@@ -44,7 +44,7 @@ self.addEventListener('fetch', e => {
       )
     );
     // Check for updates in the background
-    e.waitUntil(checkForUpdate());
+    e.waitUntil(checkForUpdate(e.request));
     return;
   }
 
@@ -54,7 +54,7 @@ self.addEventListener('fetch', e => {
   );
 });
 
-async function checkForUpdate() {
+async function checkForUpdate(navigationRequest) {
   try {
     var cache = await caches.open(CACHE_NAME);
     var cached = await cache.match('./index.html');
@@ -63,7 +63,7 @@ async function checkForUpdate() {
     var fresh = await fetch('./index.html', { cache: 'no-cache' });
     if (!fresh.ok) return;
 
-    var freshText = await fresh.clone().text();
+    var freshText = await fresh.text();
     var cachedText = await cached.text();
 
     if (freshText === cachedText) return;
@@ -76,6 +76,13 @@ async function checkForUpdate() {
           .catch(() => {})
       )
     );
+
+    // Also update the navigation request's cache entry
+    // (may differ from ./index.html if the user navigated to e.g. "/")
+    var navFresh = await fetch(navigationRequest, { cache: 'no-cache' });
+    if (navFresh.ok) {
+      await cache.put(navigationRequest, navFresh);
+    }
   } catch (e) {
     // Offline or fetch error — skip update
   }
