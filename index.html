@@ -1016,8 +1016,7 @@ button:disabled {
     // Prime audio on user gesture
     primeAudio();
 
-    // Enable wake lock
-    try { noSleep && noSleep.enable(); } catch (e) { /* ignore */ }
+    // Wake lock enabled in click handler above
 
     // Find first non-zero phase
     phaseIndex = 0;
@@ -1100,6 +1099,8 @@ button:disabled {
 
   startBtn.addEventListener('click', () => {
     if (startBtn.disabled) return;
+    // Enable wake lock immediately on user gesture (iOS requires this)
+    try { noSleep && noSleep.enable(); } catch (e) { /* ignore */ }
     startSession();
   });
 
