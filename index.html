@@ -737,7 +737,6 @@ button:disabled {
           s.leadOutCompleted = s.leadOut || 0;
           s.leadInPaused = 0;
           s.meditationPaused = 0;
-          s.leadOutPaused = 0;
           s.meditationLogged = s.meditation || 0;
           delete s.totalSeconds;
           delete s.completedFull;
@@ -757,7 +756,7 @@ button:disabled {
       const history = loadHistory();
       var entry = Object.assign({}, data);
       ['leadInPaused', 'leadInCompleted', 'meditationPaused', 'meditationCompleted',
-       'leadOutPaused', 'leadOutCompleted', 'meditationLogged'].forEach(function(k) {
+       'leadOutCompleted', 'meditationLogged'].forEach(function(k) {
         if (entry[k] != null) entry[k] = Math.round(entry[k]);
       });
       history.push(entry);
@@ -987,6 +986,7 @@ button:disabled {
   function startPhaseTimer(durationSec) {
     paused = false;
     pauseBtn.textContent = 'Pause';
+    pauseBtn.style.display = currentPhase === 'LEADOUT' ? 'none' : '';
     timerDisplay.classList.remove('heartbeat');
     if (currentPhase === 'MEDITATION') {
       meditationStartTime = Date.now();
@@ -1024,7 +1024,9 @@ button:disabled {
     // Save phase data
     var key = phaseDataKey[currentPhase];
     sessionData[key + 'Completed'] = phaseDurations[currentPhase];
-    sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+    if (currentPhase !== 'LEADOUT') {
+      sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+    }
     currentPhasePausedMs = 0;
 
     // Play sound for completed phase
@@ -1120,7 +1122,6 @@ button:disabled {
       leadInCompleted: 0,
       meditationPaused: 0,
       meditationCompleted: 0,
-      leadOutPaused: 0,
       leadOutCompleted: 0,
       meditationLogged: 0
     };
@@ -1161,7 +1162,9 @@ button:disabled {
       var remainingMs = paused ? pausedRemaining : Math.max(0, endTime - Date.now());
       var key = phaseDataKey[currentPhase];
       sessionData[key + 'Completed'] = phaseDurations[currentPhase] - remainingMs / 1000;
-      sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+      if (currentPhase !== 'LEADOUT') {
+        sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+      }
       endedEarly = Date.now();
     }
 
