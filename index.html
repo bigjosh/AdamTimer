@@ -461,6 +461,95 @@ button:disabled {
   opacity: 0.5;
   line-height: 1.5;
 }
+
+/* Graphs */
+.graph {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 24px;
+}
+
+.graph-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  opacity: 0.5;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.graph-body {
+  position: relative;
+}
+
+.graph-y-tick {
+  position: absolute;
+  left: 2px;
+  font-size: 9px;
+  opacity: 0.4;
+  transform: translateY(-50%);
+  line-height: 1;
+  z-index: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.graph-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  pointer-events: none;
+}
+
+.graph-bars {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 100px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 2px;
+}
+
+.graph-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.graph-bar {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px 2px 0 0;
+  min-height: 1px;
+}
+
+.graph-labels {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.graph-label {
+  flex: 1;
+  font-size: 9px;
+  opacity: 0.4;
+  text-align: center;
+}
+
+#detail-screen {
+  background: #000;
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 50px);
+  padding-bottom: 40px;
+}
+
+#detail-btn {
+  margin-top: 10px;
+}
 </style>
 </head>
 <body>
@@ -564,6 +653,17 @@ button:disabled {
     </svg>
   </button>
   <div class="stats-summary" id="stats-summary"></div>
+  <div id="graphs-container"></div>
+  <button id="detail-btn">Daily Detail</button>
+</div>
+
+<!-- Detail Screen -->
+<div id="detail-screen" class="screen">
+  <button class="close-btn" id="detail-close" aria-label="Close">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
   <input type="date" class="stats-date-picker" id="stats-date-picker">
   <div class="session-list" id="session-list"></div>
 </div>
@@ -582,7 +682,8 @@ button:disabled {
   const completeScreen = document.getElementById('complete-screen');
   const menuScreen = document.getElementById('menu-screen');
   const statsScreen = document.getElementById('stats-screen');
-  const screens = [startScreen, timerScreen, completeScreen, menuScreen, statsScreen];
+  const detailScreen = document.getElementById('detail-screen');
+  const screens = [startScreen, timerScreen, completeScreen, menuScreen, statsScreen, detailScreen];
 
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const menuCloseBtn = document.getElementById('menu-close');
@@ -591,6 +692,9 @@ button:disabled {
   const menuInstallBtn = document.getElementById('menu-install');
   const menuIosEl = document.getElementById('menu-ios');
   const statsCloseBtn = document.getElementById('stats-close');
+  const detailCloseBtn = document.getElementById('detail-close');
+  const detailBtn = document.getElementById('detail-btn');
+  const graphsContainer = document.getElementById('graphs-container');
   const statsDatePicker = document.getElementById('stats-date-picker');
   const sessionListEl = document.getElementById('session-list');
   const statsSummaryEl = document.getElementById('stats-summary');
@@ -883,7 +987,6 @@ button:disabled {
         month: 'short', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit'
       });
-      var total = (s.leadInCompleted || 0) + (s.meditationLogged || 0) + (s.leadOutCompleted || 0);
       var completed = (s.leadInCompleted === s.leadIn) &&
         (s.meditationCompleted === s.meditation) && (s.leadOutCompleted === s.leadOut);
       var status = completed ? 'Completed' : 'Ended early';
@@ -891,7 +994,7 @@ button:disabled {
       html += '<div class="session-entry" data-date="' + dateStr + '">';
       html += '<div class="session-entry-date">' + timeStr + '</div>';
       html += '<div class="session-entry-details">';
-      html += 'Meditation: ' + formatTimeDisplay(s.meditationLogged || 0) + ' &middot; Total: ' + formatTimeDisplay(total) + ' &middot; ' + status;
+      html += formatTimeDisplay(s.meditationLogged || 0) + ' &middot; ' + status;
       html += '</div></div>';
     });
 
@@ -900,6 +1003,131 @@ button:disabled {
     }
 
     sessionListEl.innerHTML = html;
+  }
+
+  function niceMax(val) {
+    if (val <= 0) return 0;
+    var exp = Math.floor(Math.log10(val));
+    var base = Math.pow(10, exp);
+    var frac = val / base;
+    if (frac <= 1) return base;
+    if (frac <= 2) return 2 * base;
+    if (frac <= 3) return 3 * base;
+    if (frac <= 4) return 4 * base;
+    if (frac <= 5) return 5 * base;
+    return 10 * base;
+  }
+
+  function renderBarGraph(data, title) {
+    var rawMax = 0;
+    data.values.forEach(function(v) { if (v > rawMax) rawMax = v; });
+    var maxVal = niceMax(rawMax);
+
+    var html = '<div class="graph">';
+    html += '<div class="graph-title">' + title + '</div>';
+    html += '<div class="graph-body">';
+
+    // Y-axis ticks and gridlines
+    if (maxVal > 0) {
+      var mid = maxVal / 2;
+      html += '<div class="graph-y-tick" style="top:0">' + Math.round(maxVal) + 'm</div>';
+      html += '<div class="graph-gridline" style="top:0"></div>';
+      html += '<div class="graph-y-tick" style="top:50px">' + Math.round(mid) + 'm</div>';
+      html += '<div class="graph-gridline" style="top:50px"></div>';
+    }
+
+    html += '<div class="graph-bars">';
+    data.values.forEach(function(v) {
+      var pct = maxVal > 0 ? (v / maxVal) * 100 : 0;
+      html += '<div class="graph-col"><div class="graph-bar" style="height:' + pct + '%"></div></div>';
+    });
+    html += '</div>';
+    html += '<div class="graph-labels">';
+    data.labels.forEach(function(l) {
+      html += '<div class="graph-label">' + l + '</div>';
+    });
+    html += '</div>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderGraphs(history) {
+    var byDate = {};
+    history.forEach(function(s) {
+      var ds = toLocalDateStr(new Date(s.date));
+      if (!byDate[ds]) byDate[ds] = 0;
+      byDate[ds] += Number(s.meditationLogged) || 0;
+    });
+
+    var html = '';
+    var today = new Date();
+
+    // 1. Daily — Last 14 Days
+    var dailyLabels = [];
+    var dailyValues = [];
+    for (var i = 13; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(d.getDate() - i);
+      var ds = toLocalDateStr(d);
+      dailyLabels.push(d.getDate());
+      dailyValues.push((byDate[ds] || 0) / 60);
+    }
+    html += renderBarGraph({ labels: dailyLabels, values: dailyValues }, 'Daily \u2014 Last 14 Days');
+
+    // Determine earliest session date
+    var earliest = null;
+    history.forEach(function(s) {
+      var sd = new Date(s.date);
+      if (!earliest || sd < earliest) earliest = sd;
+    });
+
+    if (earliest) {
+      var weeksAgo = (today - earliest) / (1000 * 60 * 60 * 24 * 7);
+
+      // 2. Weekly Avg — Last 12 Weeks
+      if (weeksAgo >= 3) {
+        var weekLabels = [];
+        var weekValues = [];
+        for (var w = 11; w >= 0; w--) {
+          var weekEnd = new Date(today);
+          weekEnd.setDate(weekEnd.getDate() - w * 7);
+          var weekStart = new Date(weekEnd);
+          weekStart.setDate(weekStart.getDate() - 6);
+          var sum = 0;
+          for (var di = 0; di < 7; di++) {
+            var dd = new Date(weekStart);
+            dd.setDate(dd.getDate() + di);
+            var dds = toLocalDateStr(dd);
+            sum += (byDate[dds] || 0);
+          }
+          weekLabels.push(12 - w);
+          weekValues.push((sum / 7) / 60);
+        }
+        html += renderBarGraph({ labels: weekLabels, values: weekValues }, 'Weekly Avg \u2014 Last 12 Weeks');
+      }
+
+      // 3. Monthly Avg — Last 12 Months
+      var monthsAgo = (today.getFullYear() - earliest.getFullYear()) * 12 + (today.getMonth() - earliest.getMonth());
+      if (monthsAgo >= 3) {
+        var monthLabels = [];
+        var monthValues = [];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        for (var m = 11; m >= 0; m--) {
+          var md = new Date(today.getFullYear(), today.getMonth() - m, 1);
+          var daysInMonth = new Date(md.getFullYear(), md.getMonth() + 1, 0).getDate();
+          var sum = 0;
+          for (var di = 1; di <= daysInMonth; di++) {
+            var dds = md.getFullYear() + '-' + String(md.getMonth() + 1).padStart(2, '0') + '-' + String(di).padStart(2, '0');
+            sum += (byDate[dds] || 0);
+          }
+          monthLabels.push(monthAbbr[md.getMonth()]);
+          monthValues.push((sum / daysInMonth) / 60);
+        }
+        html += renderBarGraph({ labels: monthLabels, values: monthValues }, 'Monthly Avg \u2014 Last 12 Months');
+      }
+    }
+
+    graphsContainer.innerHTML = html;
   }
 
   // --- Validation ---
@@ -1303,8 +1531,18 @@ button:disabled {
     var history = loadHistory();
     var stats = computeStats(history);
     renderStatsSummary(stats);
+    renderGraphs(history);
+    showScreen(statsScreen);
+  });
+
+  detailBtn.addEventListener('click', () => {
+    var history = loadHistory();
     renderSessionList(history);
     statsDatePicker.value = '';
+    showScreen(detailScreen);
+  });
+
+  detailCloseBtn.addEventListener('click', () => {
     showScreen(statsScreen);
   });
 
