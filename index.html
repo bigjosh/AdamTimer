@@ -213,6 +213,35 @@ button:disabled {
   border: none;
 }
 
+.additional-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+#additional-display {
+  font-size: 28px;
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.additional-plus-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: 0;
+  text-transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+}
+
 /* Timer Screen */
 #timer-screen {
   background-color: #000;
@@ -498,6 +527,10 @@ button:disabled {
 <div id="complete-screen" class="screen">
   <div class="stats">
     <div class="total-time" id="stat-total">00:00</div>
+    <div class="additional-time" id="stat-additional" style="display:none">
+      <span id="additional-display"></span>
+      <button id="additional-plus" class="additional-plus-btn">+</button>
+    </div>
   </div>
   <div class="log-prompt">Log this session?</div>
   <div class="log-buttons">
@@ -577,6 +610,9 @@ button:disabled {
   const statLeadOut = document.getElementById('stat-leadout');
   const logYes = document.getElementById('log-yes');
   const logNo = document.getElementById('log-no');
+  const statAdditional = document.getElementById('stat-additional');
+  const additionalDisplay = document.getElementById('additional-display');
+  const additionalPlusBtn = document.getElementById('additional-plus');
 
   const audioKnock = document.getElementById('audio-knock');
   const audioGong = document.getElementById('audio-gong');
@@ -594,6 +630,13 @@ button:disabled {
   let pausedRemaining = 0; // ms remaining when paused
   let timerRAF = null;
   let sessionData = {};
+
+  // Additional time state
+  let additionalStartTime = 0;
+  let additionalElapsedMs = 0;
+  let showAdditional = false;
+  let additionalRunning = false;
+  let additionalRAF = null;
 
   // --- Helpers ---
   function fmt(totalSeconds, forceHours) {
@@ -630,6 +673,23 @@ button:disabled {
     el.dataset.value = v;
     el.value = formatTimeDisplay(v);
     return v;
+  }
+
+  function getAdditionalSeconds() {
+    if (additionalRunning) {
+      return Math.floor((additionalElapsedMs + (Date.now() - additionalStartTime)) / 1000);
+    }
+    return Math.floor(additionalElapsedMs / 1000);
+  }
+
+  function updateAdditionalDisplay() {
+    additionalDisplay.textContent = 'Add ' + fmt(getAdditionalSeconds());
+  }
+
+  function tickAdditional() {
+    if (!additionalRunning) return;
+    updateAdditionalDisplay();
+    additionalRAF = requestAnimationFrame(tickAdditional);
   }
 
   // --- localStorage persistence ---
@@ -927,6 +987,11 @@ button:disabled {
       playSound(audioKnock);
     } else if (currentPhase === 'MEDITATION') {
       playSound(audioGong);
+      // Start additional time tracking
+      additionalStartTime = Date.now();
+      additionalElapsedMs = 0;
+      showAdditional = true;
+      additionalRunning = true;
     } else if (currentPhase === 'LEADOUT') {
       playSound(audioKnock);
     }
@@ -1014,6 +1079,13 @@ button:disabled {
       completedFull: false
     };
 
+    // Reset additional time state
+    additionalStartTime = 0;
+    additionalElapsedMs = 0;
+    showAdditional = false;
+    additionalRunning = false;
+    cancelAnimationFrame(additionalRAF);
+
     // Prime audio on user gesture
     primeAudio();
 
@@ -1045,8 +1117,25 @@ button:disabled {
 
     sessionData.completedFull = !early;
 
+    // Handle additional timer
+    if (early && additionalRunning) {
+      additionalElapsedMs += Date.now() - additionalStartTime;
+      additionalRunning = false;
+    }
+
     // Build stats
     statTotal.textContent = fmt(sessionData.meditation * 60);
+
+    // Show/hide additional time
+    if (showAdditional) {
+      updateAdditionalDisplay();
+      statAdditional.style.display = '';
+      if (additionalRunning) {
+        tickAdditional();
+      }
+    } else {
+      statAdditional.style.display = 'none';
+    }
 
     showScreen(completeScreen);
   }
@@ -1059,6 +1148,10 @@ button:disabled {
       endTime = Date.now() + pausedRemaining;
       pauseBtn.textContent = 'Pause';
       timerDisplay.classList.remove('heartbeat');
+      if (showAdditional && !additionalRunning) {
+        additionalStartTime = Date.now();
+        additionalRunning = true;
+      }
       tick();
     } else {
       // Pause
@@ -1067,6 +1160,10 @@ button:disabled {
       pausedRemaining = Math.max(0, endTime - Date.now());
       pauseBtn.textContent = 'Resume';
       timerDisplay.classList.add('heartbeat');
+      if (additionalRunning) {
+        additionalElapsedMs += Date.now() - additionalStartTime;
+        additionalRunning = false;
+      }
     }
   }
 
@@ -1114,6 +1211,11 @@ button:disabled {
   });
 
   logYes.addEventListener('click', () => {
+    if (additionalRunning) {
+      additionalElapsedMs += Date.now() - additionalStartTime;
+      additionalRunning = false;
+    }
+    cancelAnimationFrame(additionalRAF);
     saveSession(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
@@ -1122,6 +1224,27 @@ button:disabled {
   });
 
   logNo.addEventListener('click', () => {
+    if (additionalRunning) {
+      additionalElapsedMs += Date.now() - additionalStartTime;
+      additionalRunning = false;
+    }
+    cancelAnimationFrame(additionalRAF);
+    showScreen(startScreen).then(() => {
+      startBtn.disabled = false;
+      validateInputs();
+    });
+  });
+
+  additionalPlusBtn.addEventListener('click', () => {
+    if (additionalRunning) {
+      additionalElapsedMs += Date.now() - additionalStartTime;
+      additionalRunning = false;
+    }
+    cancelAnimationFrame(additionalRAF);
+    var addSec = getAdditionalSeconds();
+    sessionData.meditation += addSec / 60;
+    sessionData.totalMinutes += addSec / 60;
+    saveSession(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
       validateInputs();
