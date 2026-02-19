@@ -9,7 +9,7 @@ const PRECACHE_URLS = [
   './gong.mp3',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js'
+  './NoSleep.min.js'
 ];
 
 self.addEventListener('install', e => {
@@ -29,61 +29,16 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.mode === 'navigate') {
-    // Serve cached page instantly
-    e.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(e.request).then(cached => {
-          if (cached) return cached;
-          // First visit with no cache - fetch and cache
-          return fetch(e.request).then(resp => {
-            cache.put(e.request, resp.clone());
-            return resp;
-          });
-        })
-      )
-    );
-    // Check for updates in the background
-    e.waitUntil(checkForUpdate(e.request));
-    return;
-  }
-
-  // Cache-first for all other assets
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.open(CACHE_NAME).then(cache =>
+      cache.match(e.request).then(cached => {
+        var fetchPromise = fetch(e.request).then(response => {
+          if (response.ok) cache.put(e.request, response.clone());
+          return response;
+        }).catch(() => cached);
+
+        return cached || fetchPromise;
+      })
+    )
   );
 });
-
-async function checkForUpdate(navigationRequest) {
-  try {
-    var cache = await caches.open(CACHE_NAME);
-    var cached = await cache.match('./index.html');
-    if (!cached) return;
-
-    var fresh = await fetch('./index.html', { cache: 'no-cache' });
-    if (!fresh.ok) return;
-
-    var freshText = await fresh.text();
-    var cachedText = await cached.text();
-
-    if (freshText === cachedText) return;
-
-    // index.html changed — refresh all cached assets
-    await Promise.all(
-      PRECACHE_URLS.map(url =>
-        fetch(url, { cache: 'no-cache' })
-          .then(r => { if (r.ok) return cache.put(url, r); })
-          .catch(() => {})
-      )
-    );
-
-    // Also update the navigation request's cache entry
-    // (may differ from ./index.html if the user navigated to e.g. "/")
-    var navFresh = await fetch(navigationRequest, { cache: 'no-cache' });
-    if (navFresh.ok) {
-      await cache.put(navigationRequest, navFresh);
-    }
-  } catch (e) {
-    // Offline or fetch error — skip update
-  }
-}
