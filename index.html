@@ -477,21 +477,21 @@ button:disabled {
       <label for="lead-in">Lead In</label>
       <input type="text" id="lead-in" readonly data-value="0" value="0">
       <div class="preset-buttons">
-        <button type="button" class="preset-btn" data-add="15">+15m</button>
-        <button type="button" class="preset-btn" data-add="5">+5m</button>
-        <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-add="900">+15m</button>
+        <button type="button" class="preset-btn" data-add="300">+5m</button>
+        <button type="button" class="preset-btn" data-add="60">+1m</button>
+        <button type="button" class="preset-btn" data-add="10">+10s</button>
         <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
     <div class="setting">
       <label for="meditation">Meditation</label>
-      <input type="text" id="meditation" readonly data-value="20" value="20m">
+      <input type="text" id="meditation" readonly data-value="1200" value="20m">
       <div class="preset-buttons">
-        <button type="button" class="preset-btn" data-add="15">+15m</button>
-        <button type="button" class="preset-btn" data-add="5">+5m</button>
-        <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-add="900">+15m</button>
+        <button type="button" class="preset-btn" data-add="300">+5m</button>
+        <button type="button" class="preset-btn" data-add="60">+1m</button>
+        <button type="button" class="preset-btn" data-add="10">+10s</button>
         <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
@@ -499,10 +499,10 @@ button:disabled {
       <label for="lead-out">Come Out</label>
       <input type="text" id="lead-out" readonly data-value="0" value="0">
       <div class="preset-buttons">
-        <button type="button" class="preset-btn" data-add="15">+15m</button>
-        <button type="button" class="preset-btn" data-add="5">+5m</button>
-        <button type="button" class="preset-btn" data-add="1">+1m</button>
-        <button type="button" class="preset-btn" data-add="10s">+10s</button>
+        <button type="button" class="preset-btn" data-add="900">+15m</button>
+        <button type="button" class="preset-btn" data-add="300">+5m</button>
+        <button type="button" class="preset-btn" data-add="60">+1m</button>
+        <button type="button" class="preset-btn" data-add="10">+10s</button>
         <button type="button" class="preset-btn" data-clear>C</button>
       </div>
     </div>
@@ -632,11 +632,11 @@ button:disabled {
   let sessionData = {};
 
   // Additional time state
-  let additionalStartTime = 0;
-  let additionalElapsedMs = 0;
-  let showAdditional = false;
-  let additionalRunning = false;
+  let meditationStartTime = 0; // ms timestamp, 0 = not started
+  let endedEarly = 0;          // 0 or ms timestamp when End pressed
   let additionalRAF = null;
+  let currentPhasePausedMs = 0; // accumulated pause ms for current phase
+  const phaseDataKey = { LEADIN: 'leadIn', MEDITATION: 'meditation', LEADOUT: 'leadOut' };
 
   // --- Helpers ---
   function fmt(totalSeconds, forceHours) {
@@ -652,9 +652,8 @@ button:disabled {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
   }
 
-  function formatTimeDisplay(minutes) {
-    if (minutes === 0) return '0';
-    var totalSec = Math.round(minutes * 60);
+  function formatTimeDisplay(totalSec) {
+    if (totalSec === 0) return '0';
     var h = Math.floor(totalSec / 3600);
     var m = Math.floor((totalSec % 3600) / 60);
     var s = totalSec % 60;
@@ -666,20 +665,20 @@ button:disabled {
   }
 
   function clampInput(el) {
-    let v = parseFloat(el.dataset.value);
-    if (isNaN(v) || v < 0) v = 0;
-    if (v > 999) v = 999;
-    v = Math.round(v * 6) / 6; // round to nearest 10s
+    let v = parseInt(el.dataset.value) || 0;
+    if (v < 0) v = 0;
+    if (v > 59940) v = 59940; // 999 minutes
+    v = Math.round(v / 10) * 10; // round to nearest 10s
     el.dataset.value = v;
     el.value = formatTimeDisplay(v);
     return v;
   }
 
   function getAdditionalSeconds() {
-    if (additionalRunning) {
-      return Math.floor((additionalElapsedMs + (Date.now() - additionalStartTime)) / 1000);
-    }
-    return Math.floor(additionalElapsedMs / 1000);
+    if (!meditationStartTime) return 0;
+    var now = endedEarly || Date.now();
+    var elapsed = (now - meditationStartTime) / 1000;
+    return Math.max(0, Math.floor(elapsed - phaseDurations.MEDITATION));
   }
 
   function updateAdditionalDisplay() {
@@ -687,7 +686,7 @@ button:disabled {
   }
 
   function tickAdditional() {
-    if (!additionalRunning) return;
+    if (endedEarly) return;
     updateAdditionalDisplay();
     additionalRAF = requestAnimationFrame(tickAdditional);
   }
@@ -698,9 +697,10 @@ button:disabled {
       const s = localStorage.getItem('meditation-settings');
       if (s) {
         const d = JSON.parse(s);
-        if (d.leadIn != null) leadInInput.dataset.value = d.leadIn;
-        if (d.meditation != null) meditationInput.dataset.value = d.meditation;
-        if (d.leadOut != null) leadOutInput.dataset.value = d.leadOut;
+        var factor = d.v ? 1 : 60; // migrate old minutes to seconds
+        if (d.leadIn != null) leadInInput.dataset.value = d.leadIn * factor;
+        if (d.meditation != null) meditationInput.dataset.value = d.meditation * factor;
+        if (d.leadOut != null) leadOutInput.dataset.value = d.leadOut * factor;
       }
     } catch (e) { /* private browsing */ }
   }
@@ -708,6 +708,7 @@ button:disabled {
   function saveSettings() {
     try {
       localStorage.setItem('meditation-settings', JSON.stringify({
+        v: 2,
         leadIn: clampInput(leadInInput),
         meditation: clampInput(meditationInput),
         leadOut: clampInput(leadOutInput)
@@ -718,14 +719,48 @@ button:disabled {
   function loadHistory() {
     try {
       const h = localStorage.getItem('meditation-history');
-      return h ? JSON.parse(h) : [];
+      if (!h) return [];
+      var arr = JSON.parse(h);
+      var migrated = false;
+      arr.forEach(function(s) {
+        if (!s.v) {
+          // v1: minutes → seconds
+          s.leadIn = (s.leadIn || 0) * 60;
+          s.meditation = (s.meditation || 0) * 60;
+          s.leadOut = (s.leadOut || 0) * 60;
+          delete s.totalMinutes;
+        }
+        if (!s.v || s.v < 3) {
+          // v1/v2 → v3: add per-phase tracking
+          s.leadInCompleted = s.leadIn || 0;
+          s.meditationCompleted = s.meditation || 0;
+          s.leadOutCompleted = s.leadOut || 0;
+          s.leadInPaused = 0;
+          s.meditationPaused = 0;
+          s.leadOutPaused = 0;
+          s.meditationLogged = s.meditation || 0;
+          delete s.totalSeconds;
+          delete s.completedFull;
+          s.v = 3;
+          migrated = true;
+        }
+      });
+      if (migrated) {
+        localStorage.setItem('meditation-history', JSON.stringify(arr));
+      }
+      return arr;
     } catch (e) { return []; }
   }
 
   function saveSession(data) {
     try {
       const history = loadHistory();
-      history.push(data);
+      var entry = Object.assign({}, data);
+      ['leadInPaused', 'leadInCompleted', 'meditationPaused', 'meditationCompleted',
+       'leadOutPaused', 'leadOutCompleted', 'meditationLogged'].forEach(function(k) {
+        if (entry[k] != null) entry[k] = Math.round(entry[k]);
+      });
+      history.push(entry);
       localStorage.setItem('meditation-history', JSON.stringify(history));
     } catch (e) { /* ignore */ }
   }
@@ -737,9 +772,9 @@ button:disabled {
       String(d.getDate()).padStart(2, '0');
   }
 
-  function formatDuration(minutes) {
-    var h = Math.floor(minutes / 60);
-    var m = minutes % 60;
+  function formatDuration(totalSec) {
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
     if (h > 0) return h + 'h ' + m + 'm';
     return m + 'm';
   }
@@ -753,18 +788,18 @@ button:disabled {
   function computeStats(history) {
     var totalSessions = history.length;
 
-    var totalMeditationMin = 0;
+    var totalMeditationSec = 0;
     history.forEach(function (s) {
-      totalMeditationMin += (s.meditation || 0);
+      totalMeditationSec += (s.meditationLogged || 0);
     });
 
     var now = new Date();
     var cutoff = new Date(now);
     cutoff.setDate(cutoff.getDate() - 14);
-    var recentMeditationMin = 0;
+    var recentMeditationSec = 0;
     history.forEach(function (s) {
       if (new Date(s.date) >= cutoff) {
-        recentMeditationMin += (s.meditation || 0);
+        recentMeditationSec += (s.meditationLogged || 0);
       }
     });
 
@@ -819,8 +854,8 @@ button:disabled {
 
     return {
       totalSessions: totalSessions,
-      totalMeditationMin: totalMeditationMin,
-      recentMeditationMin: recentMeditationMin,
+      totalMeditationSec: totalMeditationSec,
+      recentMeditationSec: recentMeditationSec,
       currentStreak: currentStreak,
       longestStreak: longestStreak,
       longestEnd: longestEnd
@@ -830,8 +865,8 @@ button:disabled {
   function renderStatsSummary(stats) {
     var html = '';
     html += '<div class="stat-row"><span class="stat-label">Total Sessions</span><span class="stat-value">' + stats.totalSessions + '</span></div>';
-    html += '<div class="stat-row"><span class="stat-label">Total Meditation</span><span class="stat-value">' + formatDuration(stats.totalMeditationMin) + '</span></div>';
-    html += '<div class="stat-row"><span class="stat-label">Last 14 Days</span><span class="stat-value">' + formatDuration(stats.recentMeditationMin) + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Total Meditation</span><span class="stat-value">' + formatDuration(stats.totalMeditationSec) + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Last 14 Days</span><span class="stat-value">' + formatDuration(stats.recentMeditationSec) + '</span></div>';
     html += '<div class="stat-row"><span class="stat-label">Current Streak</span><span class="stat-value">' + stats.currentStreak + (stats.currentStreak === 1 ? ' day' : ' days') + '</span></div>';
     var longestText = stats.longestStreak + (stats.longestStreak === 1 ? ' day' : ' days');
     if (stats.longestEnd) longestText += ' (' + formatDateNice(stats.longestEnd) + ')';
@@ -849,14 +884,15 @@ button:disabled {
         month: 'short', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit'
       });
-      var medMin = s.meditation || 0;
-      var totalMin = s.totalMinutes || 0;
-      var status = s.completedFull ? 'Completed' : 'Ended early';
+      var total = (s.leadInCompleted || 0) + (s.meditationLogged || 0) + (s.leadOutCompleted || 0);
+      var completed = (s.leadInCompleted === s.leadIn) &&
+        (s.meditationCompleted === s.meditation) && (s.leadOutCompleted === s.leadOut);
+      var status = completed ? 'Completed' : 'Ended early';
 
       html += '<div class="session-entry" data-date="' + dateStr + '">';
       html += '<div class="session-entry-date">' + timeStr + '</div>';
       html += '<div class="session-entry-details">';
-      html += 'Meditation: ' + medMin + ' min &middot; Total: ' + totalMin + ' min &middot; ' + status;
+      html += 'Meditation: ' + formatTimeDisplay(s.meditationLogged || 0) + ' &middot; Total: ' + formatTimeDisplay(total) + ' &middot; ' + status;
       html += '</div></div>';
     });
 
@@ -952,6 +988,9 @@ button:disabled {
     paused = false;
     pauseBtn.textContent = 'Pause';
     timerDisplay.classList.remove('heartbeat');
+    if (currentPhase === 'MEDITATION') {
+      meditationStartTime = Date.now();
+    }
     endTime = Date.now() + durationSec * 1000;
     tick();
   }
@@ -982,16 +1021,17 @@ button:disabled {
   function onPhaseComplete() {
     cancelAnimationFrame(timerRAF);
 
+    // Save phase data
+    var key = phaseDataKey[currentPhase];
+    sessionData[key + 'Completed'] = phaseDurations[currentPhase];
+    sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+    currentPhasePausedMs = 0;
+
     // Play sound for completed phase
     if (currentPhase === 'LEADIN') {
       playSound(audioKnock);
     } else if (currentPhase === 'MEDITATION') {
       playSound(audioGong);
-      // Start additional time tracking
-      additionalStartTime = Date.now();
-      additionalElapsedMs = 0;
-      showAdditional = true;
-      additionalRunning = true;
     } else if (currentPhase === 'LEADOUT') {
       playSound(audioKnock);
     }
@@ -1065,25 +1105,30 @@ button:disabled {
     if (li + med + lo === 0) return;
 
     phaseDurations = {
-      LEADIN: li * 60,
-      MEDITATION: med * 60,
-      LEADOUT: lo * 60
+      LEADIN: li,
+      MEDITATION: med,
+      LEADOUT: lo
     };
 
     sessionData = {
+      v: 3,
       date: new Date().toISOString(),
       leadIn: li,
       meditation: med,
       leadOut: lo,
-      totalMinutes: li + med + lo,
-      completedFull: false
+      leadInPaused: 0,
+      leadInCompleted: 0,
+      meditationPaused: 0,
+      meditationCompleted: 0,
+      leadOutPaused: 0,
+      leadOutCompleted: 0,
+      meditationLogged: 0
     };
 
     // Reset additional time state
-    additionalStartTime = 0;
-    additionalElapsedMs = 0;
-    showAdditional = false;
-    additionalRunning = false;
+    meditationStartTime = 0;
+    endedEarly = 0;
+    currentPhasePausedMs = 0;
     cancelAnimationFrame(additionalRAF);
 
     // Prime audio on user gesture
@@ -1110,27 +1155,31 @@ button:disabled {
 
   function finishSession(early) {
     cancelAnimationFrame(timerRAF);
+
+    if (early) {
+      // Save partial phase data before clearing pause state
+      var remainingMs = paused ? pausedRemaining : Math.max(0, endTime - Date.now());
+      var key = phaseDataKey[currentPhase];
+      sessionData[key + 'Completed'] = phaseDurations[currentPhase] - remainingMs / 1000;
+      sessionData[key + 'Paused'] = currentPhasePausedMs / 1000;
+      endedEarly = Date.now();
+    }
+
+    sessionData.meditationLogged = sessionData.meditationCompleted;
+
     paused = false;
     timerDisplay.classList.remove('heartbeat');
 
     try { noSleep && noSleep.disable(); } catch (e) { /* ignore */ }
 
-    sessionData.completedFull = !early;
-
-    // Handle additional timer
-    if (early && additionalRunning) {
-      additionalElapsedMs += Date.now() - additionalStartTime;
-      additionalRunning = false;
-    }
-
     // Build stats
-    statTotal.textContent = fmt(sessionData.meditation * 60);
+    statTotal.textContent = fmt(sessionData.meditation);
 
     // Show/hide additional time
-    if (showAdditional) {
+    if (meditationStartTime && (!endedEarly || getAdditionalSeconds() > 0)) {
       updateAdditionalDisplay();
       statAdditional.style.display = '';
-      if (additionalRunning) {
+      if (!endedEarly) {
         tickAdditional();
       }
     } else {
@@ -1143,15 +1192,16 @@ button:disabled {
   // --- Pause ---
   function togglePause() {
     if (paused) {
-      // Resume
+      // Resume — accumulate pause duration
       paused = false;
+      var pauseDurationMs = Date.now() - endTime + pausedRemaining;
+      currentPhasePausedMs += pauseDurationMs;
+      if (meditationStartTime) {
+        meditationStartTime += pauseDurationMs;
+      }
       endTime = Date.now() + pausedRemaining;
       pauseBtn.textContent = 'Pause';
       timerDisplay.classList.remove('heartbeat');
-      if (showAdditional && !additionalRunning) {
-        additionalStartTime = Date.now();
-        additionalRunning = true;
-      }
       tick();
     } else {
       // Pause
@@ -1160,10 +1210,6 @@ button:disabled {
       pausedRemaining = Math.max(0, endTime - Date.now());
       pauseBtn.textContent = 'Resume';
       timerDisplay.classList.add('heartbeat');
-      if (additionalRunning) {
-        additionalElapsedMs += Date.now() - additionalStartTime;
-        additionalRunning = false;
-      }
     }
   }
 
@@ -1174,9 +1220,7 @@ button:disabled {
       if (btn.dataset.clear !== undefined) {
         input.dataset.value = 0;
       } else {
-        var addVal = btn.dataset.add;
-        var addMin = addVal.endsWith('s') ? parseFloat(addVal) / 60 : parseFloat(addVal);
-        input.dataset.value = parseFloat(input.dataset.value || 0) + addMin;
+        input.dataset.value = (parseInt(input.dataset.value) || 0) + parseInt(btn.dataset.add);
       }
       clampInput(input);
       validateInputs();
@@ -1211,10 +1255,6 @@ button:disabled {
   });
 
   logYes.addEventListener('click', () => {
-    if (additionalRunning) {
-      additionalElapsedMs += Date.now() - additionalStartTime;
-      additionalRunning = false;
-    }
     cancelAnimationFrame(additionalRAF);
     saveSession(sessionData);
     showScreen(startScreen).then(() => {
@@ -1224,10 +1264,6 @@ button:disabled {
   });
 
   logNo.addEventListener('click', () => {
-    if (additionalRunning) {
-      additionalElapsedMs += Date.now() - additionalStartTime;
-      additionalRunning = false;
-    }
     cancelAnimationFrame(additionalRAF);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
@@ -1236,14 +1272,10 @@ button:disabled {
   });
 
   additionalPlusBtn.addEventListener('click', () => {
-    if (additionalRunning) {
-      additionalElapsedMs += Date.now() - additionalStartTime;
-      additionalRunning = false;
-    }
     cancelAnimationFrame(additionalRAF);
+    if (!endedEarly) endedEarly = Date.now();
     var addSec = getAdditionalSeconds();
-    sessionData.meditation += addSec / 60;
-    sessionData.totalMinutes += addSec / 60;
+    sessionData.meditationLogged = sessionData.meditationCompleted + addSec;
     saveSession(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
