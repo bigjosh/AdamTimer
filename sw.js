@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meditation-v2';
+const CACHE_NAME = 'meditation-v3';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const PRECACHE_URLS = [
   './gong.mp3',
   './icon-192.png',
   './icon-512.png',
+  './favicon.svg',
   './NoSleep.min.js'
 ];
 
