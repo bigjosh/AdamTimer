@@ -722,6 +722,9 @@ button:disabled {
 
   const audioKnock = document.getElementById('audio-knock');
   const audioGong = document.getElementById('audio-gong');
+  let audioHasBeenPrimed = false;
+  audioKnock.muted = true;
+  audioGong.muted = true;
 
   let noSleep;
   try { noSleep = new NoSleep(); } catch (e) { /* ignore */ }
@@ -1200,15 +1203,15 @@ button:disabled {
 
   // --- Audio ---
   function primeAudio() {
-    [audioKnock, audioGong].forEach(a => {
-      var savedVol = a.volume;
-      a.volume = 0;
-      a.play().then(() => { a.pause(); a.currentTime = 0; a.volume = savedVol; }).catch(() => { a.volume = savedVol; });
-    });
+    if (audioHasBeenPrimed) return;
+    audioHasBeenPrimed = true;
+    [audioKnock, audioGong].forEach(a => a.play().catch(() => {}));
   }
 
   function playSound(audioEl) {
+    audioEl.pause();
     audioEl.currentTime = 0;
+    audioEl.muted = false;
     audioEl.play().catch(() => {});
   }
 
