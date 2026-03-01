@@ -5,8 +5,6 @@ const PRECACHE_URLS = [
   './manifest.json',
   './sand.jpg',
   './sea.jpg',
-  './knock.mp3',
-  './gong.mp3',
   './icon-192.png',
   './icon-512.png',
   './favicon.svg',

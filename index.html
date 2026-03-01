@@ -19,6 +19,7 @@
 }
 
 html, body {
+  color-scheme: dark;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -378,6 +379,91 @@ button:disabled {
   line-height: 1.6;
 }
 
+/* Settings Screen */
+#settings-screen {
+  background: #000;
+}
+
+.settings-items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.sound-setting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sound-setting label {
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+}
+
+.sound-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.sound-preview {
+  flex: 0 0 42px;
+  width: 42px;
+  max-width: 42px;
+  height: 42px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.8;
+}
+
+.sound-preview svg {
+  flex-shrink: 0;
+}
+
+.sound-preview:active {
+  opacity: 1;
+}
+
+.sound-setting select {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #222;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 300;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+
+.sound-setting select option {
+  background: #222;
+  color: #fff;
+}
+
 /* Stats Screen */
 #stats-screen {
   background: #000;
@@ -635,10 +721,49 @@ button:disabled {
   </button>
   <div class="menu-items">
     <a class="menu-item" id="menu-statistics">Statistics</a>
+    <a class="menu-item" id="menu-sounds">Sounds</a>
     <a class="menu-item" id="menu-update">Update</a>
     <a class="menu-item" id="menu-install" style="display:none">Install App</a>
     <div class="menu-item menu-ios" id="menu-ios" style="display:none">
       Tap <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin:0 2px"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg> then <strong>Add to Home Screen</strong>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Screen -->
+<div id="settings-screen" class="screen">
+  <button class="close-btn" id="settings-close" aria-label="Close">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
+  <div class="settings-items">
+    <div class="sound-setting">
+      <label for="sound-leadin">End of Lead In</label>
+      <div class="sound-row">
+        <select id="sound-leadin"></select>
+        <button class="sound-preview" id="preview-leadin" aria-label="Preview sound">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sound-setting">
+      <label for="sound-meditation">End of Meditation</label>
+      <div class="sound-row">
+        <select id="sound-meditation"></select>
+        <button class="sound-preview" id="preview-meditation" aria-label="Preview sound">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sound-setting">
+      <label for="sound-leadout">End of Come Out</label>
+      <div class="sound-row">
+        <select id="sound-leadout"></select>
+        <button class="sound-preview" id="preview-leadout" aria-label="Preview sound">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -666,9 +791,6 @@ button:disabled {
   <div class="session-list" id="session-list"></div>
 </div>
 
-<audio id="audio-knock" preload="auto" src="knock.mp3"></audio>
-<audio id="audio-gong" preload="auto" src="gong.mp3"></audio>
-
 <script src="NoSleep.min.js"></script>
 <script>
 (function () {
@@ -681,11 +803,13 @@ button:disabled {
   const menuScreen = document.getElementById('menu-screen');
   const statsScreen = document.getElementById('stats-screen');
   const detailScreen = document.getElementById('detail-screen');
-  const screens = [startScreen, timerScreen, completeScreen, menuScreen, statsScreen, detailScreen];
+  const settingsScreen = document.getElementById('settings-screen');
+  const screens = [startScreen, timerScreen, completeScreen, menuScreen, statsScreen, detailScreen, settingsScreen];
 
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const menuCloseBtn = document.getElementById('menu-close');
   const menuStatistics = document.getElementById('menu-statistics');
+  const menuSoundsBtn = document.getElementById('menu-sounds');
   const menuUpdateBtn = document.getElementById('menu-update');
   const menuInstallBtn = document.getElementById('menu-install');
   const menuIosEl = document.getElementById('menu-ios');
@@ -696,6 +820,10 @@ button:disabled {
   const statsDatePicker = document.getElementById('stats-date-picker');
   const sessionListEl = document.getElementById('session-list');
   const statsSummaryEl = document.getElementById('stats-summary');
+  const settingsCloseBtn = document.getElementById('settings-close');
+  const soundLeadInSelect = document.getElementById('sound-leadin');
+  const soundMeditationSelect = document.getElementById('sound-meditation');
+  const soundLeadOutSelect = document.getElementById('sound-leadout');
 
   const leadInInput = document.getElementById('lead-in');
   const meditationInput = document.getElementById('meditation');
@@ -716,11 +844,17 @@ button:disabled {
   const additionalDisplay = document.getElementById('additional-display');
   const additionalPlusBtn = document.getElementById('additional-plus');
 
-  const audioKnock = document.getElementById('audio-knock');
-  const audioGong = document.getElementById('audio-gong');
-  let audioHasBeenPrimed = false;
-  audioKnock.muted = true;
-  audioGong.muted = true;
+  var SOUND_OPTIONS = [
+    { name: 'Gong 1', file: 'sounds/Gong 1.m4a' },
+    { name: 'Gong 2', file: 'sounds/Gong 2.wav' },
+    { name: 'Gong 3', file: 'sounds/Gong 3.wav' },
+    { name: 'Gong 4', file: 'sounds/Gong 4.wav' },
+    { name: 'Gong 5', file: 'sounds/Gong 5.wav' },
+    { name: 'Wood Block', file: 'sounds/Wood Block.m4a' }
+  ];
+  var SOUND_DEFAULTS = { leadIn: 'Wood Block', meditation: 'Gong 1', leadOut: 'Gong 5' };
+
+  var audioLeadIn, audioMeditation, audioLeadOut;
 
   let noSleep;
   try { noSleep = new NoSleep(); } catch (e) { /* ignore */ }
@@ -1176,8 +1310,9 @@ button:disabled {
 
   function applyVolume(v) {
     var vol = v / 100;
-    audioKnock.volume = vol;
-    audioGong.volume = vol;
+    if (audioLeadIn) audioLeadIn.volume = vol;
+    if (audioMeditation) audioMeditation.volume = vol;
+    if (audioLeadOut) audioLeadOut.volume = vol;
     // Update icon waves visibility
     volWave1.style.opacity = v > 0 ? 1 : 0;
     volWave2.style.opacity = v > 40 ? 1 : 0;
@@ -1199,16 +1334,16 @@ button:disabled {
 
   // --- Audio ---
   function primeAudio() {
-    if (audioHasBeenPrimed) return;
-    audioHasBeenPrimed = true;
-    [audioKnock, audioGong].forEach(a => a.play().catch(() => {}));
+    [audioLeadIn, audioMeditation, audioLeadOut].forEach(function (a) {
+      a.play().catch(function () {});
+    });
   }
 
   function playSound(audioEl) {
     audioEl.pause();
     audioEl.currentTime = 0;
     audioEl.muted = false;
-    audioEl.play().catch(() => {});
+    audioEl.play().catch(function () {});
   }
 
   // --- Timer ---
@@ -1260,11 +1395,11 @@ button:disabled {
 
     // Play sound for completed phase
     if (currentPhase === 'LEADIN') {
-      playSound(audioKnock);
+      playSound(audioLeadIn);
     } else if (currentPhase === 'MEDITATION') {
-      playSound(audioGong);
+      playSound(audioMeditation);
     } else if (currentPhase === 'LEADOUT') {
-      playSound(audioKnock);
+      playSound(audioLeadOut);
     }
 
     // Brief pause for sound, then advance
@@ -1361,7 +1496,8 @@ button:disabled {
     currentPhasePausedMs = 0;
     cancelAnimationFrame(additionalRAF);
 
-    // Prime audio on user gesture
+    // Fresh audio objects for this session, then prime on user gesture
+    createSessionAudio();
     primeAudio();
 
     // Wake lock enabled in click handler above
@@ -1515,6 +1651,95 @@ button:disabled {
     });
   });
 
+  // --- Sound Settings ---
+  function findSoundFile(name) {
+    var opt = SOUND_OPTIONS.find(function (o) { return o.name === name; });
+    return opt ? opt.file : '';
+  }
+
+  function loadSoundSettings() {
+    var settings = SOUND_DEFAULTS;
+    try {
+      var stored = localStorage.getItem('meditation-sounds');
+      if (stored) settings = JSON.parse(stored);
+    } catch (e) {}
+    return {
+      leadIn: settings.leadIn || SOUND_DEFAULTS.leadIn,
+      meditation: settings.meditation || SOUND_DEFAULTS.meditation,
+      leadOut: settings.leadOut || SOUND_DEFAULTS.leadOut
+    };
+  }
+
+  function createSessionAudio() {
+    var settings = loadSoundSettings();
+    audioLeadIn = new Audio(findSoundFile(settings.leadIn));
+    audioMeditation = new Audio(findSoundFile(settings.meditation));
+    audioLeadOut = new Audio(findSoundFile(settings.leadOut));
+    audioLeadIn.muted = true;
+    audioMeditation.muted = true;
+    audioLeadOut.muted = true;
+    applyVolume(Number(volumeSlider.value));
+  }
+
+  function saveSoundSettings(obj) {
+    try { localStorage.setItem('meditation-sounds', JSON.stringify(obj)); } catch (e) {}
+  }
+
+  function cacheAllSounds() {
+    if (!('caches' in window)) return;
+    caches.open('meditation-v3').then(function (cache) {
+      SOUND_OPTIONS.forEach(function (opt) {
+        cache.match(opt.file).then(function (cached) {
+          if (!cached) cache.add(opt.file);
+        });
+      });
+    });
+  }
+
+  function populateSoundSelects(settings) {
+    [soundLeadInSelect, soundMeditationSelect, soundLeadOutSelect].forEach(function (sel) {
+      sel.innerHTML = '';
+      SOUND_OPTIONS.forEach(function (opt) {
+        var o = document.createElement('option');
+        o.value = opt.name;
+        o.textContent = opt.name;
+        sel.appendChild(o);
+      });
+    });
+    soundLeadInSelect.value = settings.leadIn || SOUND_DEFAULTS.leadIn;
+    soundMeditationSelect.value = settings.meditation || SOUND_DEFAULTS.meditation;
+    soundLeadOutSelect.value = settings.leadOut || SOUND_DEFAULTS.leadOut;
+  }
+
+  function getCurrentSoundSettings() {
+    return {
+      leadIn: soundLeadInSelect.value,
+      meditation: soundMeditationSelect.value,
+      leadOut: soundLeadOutSelect.value
+    };
+  }
+
+  function onSoundSelectChange() {
+    saveSoundSettings(getCurrentSoundSettings());
+  }
+
+  soundLeadInSelect.addEventListener('change', onSoundSelectChange);
+  soundMeditationSelect.addEventListener('change', onSoundSelectChange);
+  soundLeadOutSelect.addEventListener('change', onSoundSelectChange);
+
+  function previewSound(selectEl) {
+    var file = findSoundFile(selectEl.value);
+    if (file) {
+      var preview = new Audio(file);
+      preview.volume = Number(volumeSlider.value) / 100;
+      preview.play().catch(function () {});
+    }
+  }
+
+  document.getElementById('preview-leadin').addEventListener('click', function () { previewSound(soundLeadInSelect); });
+  document.getElementById('preview-meditation').addEventListener('click', function () { previewSound(soundMeditationSelect); });
+  document.getElementById('preview-leadout').addEventListener('click', function () { previewSound(soundLeadOutSelect); });
+
   // --- Menu navigation ---
   hamburgerBtn.addEventListener('click', () => {
     showScreen(menuScreen);
@@ -1522,6 +1747,14 @@ button:disabled {
 
   menuCloseBtn.addEventListener('click', () => {
     showScreen(startScreen);
+  });
+
+  menuSoundsBtn.addEventListener('click', () => {
+    showScreen(settingsScreen);
+  });
+
+  settingsCloseBtn.addEventListener('click', () => {
+    showScreen(menuScreen);
   });
 
   statsCloseBtn.addEventListener('click', () => {
@@ -1611,7 +1844,10 @@ button:disabled {
 
   // --- Init ---
   loadSettings();
+  populateSoundSelects(loadSoundSettings());
+  cacheAllSounds();
   loadVolume();
+  createSessionAudio();
   validateInputs();
 
   // Register service worker
