@@ -845,12 +845,12 @@ button:disabled {
   const additionalPlusBtn = document.getElementById('additional-plus');
 
   var SOUND_OPTIONS = [
-    { name: 'Gong 1', file: 'sounds/Gong 1.m4a' },
-    { name: 'Gong 2', file: 'sounds/Gong 2.wav' },
-    { name: 'Gong 3', file: 'sounds/Gong 3.wav' },
-    { name: 'Gong 4', file: 'sounds/Gong 4.wav' },
-    { name: 'Gong 5', file: 'sounds/Gong 5.wav' },
-    { name: 'Wood Block', file: 'sounds/Wood Block.m4a' }
+    { name: 'Gong 1', label: 'Singing Bowl', file: 'sounds/Gong 1.m4a' },
+    { name: 'Gong 2', label: 'Sanctuary Gong', file: 'sounds/Gong 2.wav' },
+    { name: 'Gong 3', label: 'Chinese Gong', file: 'sounds/Gong 3.wav' },
+    { name: 'Gong 4', label: 'Brass Bowl', file: 'sounds/Gong 4.wav' },
+    { name: 'Gong 5', label: 'Short Bell', file: 'sounds/Gong 5.wav' },
+    { name: 'Wood Block', label: 'Wood Block', file: 'sounds/Wood Block.m4a' }
   ];
   var SOUND_DEFAULTS = { leadIn: 'Wood Block', meditation: 'Gong 1', leadOut: 'Gong 5' };
 
@@ -1702,7 +1702,7 @@ button:disabled {
       SOUND_OPTIONS.forEach(function (opt) {
         var o = document.createElement('option');
         o.value = opt.name;
-        o.textContent = opt.name;
+        o.textContent = opt.label;
         sel.appendChild(o);
       });
     });
