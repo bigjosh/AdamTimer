@@ -854,6 +854,8 @@ button:disabled {
   ];
   var SOUND_DEFAULTS = { leadIn: 'Wood Block', meditation: 'Gong 1', leadOut: 'Gong 5' };
 
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbz9ZkoVBwIEFjDVCPGkxANvmoekv6RaHNeoDcOKvl8OvwqxnaOfINHkwSlGaLV9fBhMMg/exec';
+
   var audioLeadIn, audioMeditation, audioLeadOut;
 
   let noSleep;
@@ -1001,6 +1003,64 @@ button:disabled {
       history.push(entry);
       localStorage.setItem('meditation-history', JSON.stringify(history));
     } catch (e) { /* ignore */ }
+  }
+
+  // --- POST queue for sheet logging ---
+  function loadPostQueue() {
+    try {
+      var stored = localStorage.getItem('meditation-post-queue');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) { return []; }
+  }
+
+  function savePostQueue(queue) {
+    try {
+      localStorage.setItem('meditation-post-queue', JSON.stringify(queue));
+    } catch (e) { /* ignore */ }
+  }
+
+  function queuePost(data) {
+    var payload = {
+      action: 'session',
+      source: appSource,
+      date: data.date,
+      v: data.v,
+      leadIn: data.leadIn,
+      meditation: data.meditation,
+      leadOut: data.leadOut,
+      leadInPaused: data.leadInPaused,
+      leadInCompleted: data.leadInCompleted,
+      meditationPaused: data.meditationPaused,
+      meditationCompleted: data.meditationCompleted,
+      leadOutCompleted: data.leadOutCompleted,
+      meditationLogged: data.meditationLogged
+    };
+    var queue = loadPostQueue();
+    queue.push(payload);
+    savePostQueue(queue);
+    flushPostQueue();
+  }
+
+  function flushPostQueue() {
+    if (!SHEET_URL) return;
+    var queue = loadPostQueue();
+    if (!queue.length) return;
+
+    var item = queue.shift();
+    savePostQueue(queue);
+
+    fetch(SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(item)
+    }).then(function () {
+      flushPostQueue();
+    }).catch(function () {
+      queue = loadPostQueue();
+      queue.unshift(item);
+      savePostQueue(queue);
+    });
   }
 
   // --- Statistics ---
@@ -1625,6 +1685,7 @@ button:disabled {
   logYes.addEventListener('click', () => {
     cancelAnimationFrame(additionalRAF);
     saveSession(sessionData);
+    queuePost(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
       validateInputs();
@@ -1645,6 +1706,7 @@ button:disabled {
     var addSec = getAdditionalSeconds();
     sessionData.meditationLogged = sessionData.meditationCompleted + addSec;
     saveSession(sessionData);
+    queuePost(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
       validateInputs();
@@ -1842,6 +1904,40 @@ button:disabled {
     }
   })();
 
+  // --- Source ---
+  var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
+
+  function generateSource() {
+    var s = '';
+    for (var i = 0; i < 10; i++) s += ZBASE32[Math.floor(Math.random() * 32)];
+    return s;
+  }
+
+  function initSource() {
+    var query = location.search.replace(/^\?/, '');
+    if (query) {
+      try {
+        var prev = localStorage.getItem('meditation-source');
+        if (prev && prev !== query) {
+          var queue = loadPostQueue();
+          queue.push({ action: 'changed', source: prev });
+          savePostQueue(queue);
+        }
+        localStorage.setItem('meditation-source', query);
+      } catch (e) {}
+      return query;
+    }
+    try {
+      var stored = localStorage.getItem('meditation-source');
+      if (stored) return stored;
+    } catch (e) {}
+    var generated = generateSource();
+    try { localStorage.setItem('meditation-source', generated); } catch (e) {}
+    return generated;
+  }
+
+  var appSource = initSource();
+
   // --- Init ---
   loadSettings();
   populateSoundSelects(loadSoundSettings());
@@ -1849,6 +1945,14 @@ button:disabled {
   loadVolume();
   createSessionAudio();
   validateInputs();
+  window.addEventListener('appinstalled', function () {
+    var queue = loadPostQueue();
+    queue.push({ action: 'install', source: appSource });
+    savePostQueue(queue);
+    flushPostQueue();
+  });
+  flushPostQueue();
+  window.addEventListener('online', flushPostQueue);
 
   // Register service worker
   if ('serviceWorker' in navigator) {

@@ -50,3 +50,19 @@ If a lead out time is non-zero, we fade in `sand.jpg` and count down the lead-ou
 ### Completion page
 
 This shows the most recently completed meditaion stats with text "Log this session?" and yes and no buttons. Pressing either button returns to the start page.
+
+## Session Logging
+
+When a session is logged, the app POSTs session data to a Google Apps Script endpoint that appends a row to a Google Sheet. The endpoint URL is hardcoded as `SHEET_URL`. Setting it to an empty string disables logging.
+
+Three event types are logged:
+- **session** — when the user logs a meditation session
+- **install** — when the user installs the PWA (via the browser `appinstalled` event)
+- **changed** — when a URL query string overwrites an existing source identifier (logs the old source)
+
+### Offline queue
+
+POSTs are queued in localStorage (`meditation-post-queue`) and retried automatically:
+- Immediately after queuing
+- On page load
+- When the browser comes back online (`online` event)

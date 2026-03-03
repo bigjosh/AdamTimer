@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meditation-v3';
+const CACHE_NAME = 'meditation-v5';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -28,11 +28,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     caches.open(CACHE_NAME).then(cache =>
       cache.match(e.request).then(cached => {
         var fetchPromise = fetch(e.request).then(response => {
-          if (response.ok) cache.put(e.request, response.clone());
+          if (response.ok && response.status === 200) cache.put(e.request, response.clone());
           return response;
         }).catch(() => cached);
 
