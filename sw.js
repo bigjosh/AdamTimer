@@ -1,22 +1,7 @@
-const CACHE_NAME = 'meditation-v5';
-const PRECACHE_URLS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './sand.jpg',
-  './sea.jpg',
-  './icon-192.png',
-  './icon-512.png',
-  './favicon.svg',
-  './NoSleep.min.js'
-];
+const CACHE_NAME = 'meditation-cache';
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', e => {
@@ -28,16 +13,44 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (new URL(e.request.url).origin !== location.origin) return;
+  var url = new URL(e.request.url);
+  if (url.origin !== location.origin) return;
+
   e.respondWith(
     caches.open(CACHE_NAME).then(cache =>
       cache.match(e.request).then(cached => {
-        var fetchPromise = fetch(e.request).then(response => {
-          if (response.ok && response.status === 200) cache.put(e.request, response.clone());
-          return response;
-        }).catch(() => cached);
+        var refresh = fetch(e.request, { cache: 'no-cache' })
+          .then(async response => {
+            if (response.status !== 200) return;
 
-        return cached || fetchPromise;
+            if (url.pathname === '/' || url.pathname.endsWith('/index.html')) {
+              var existing = await cache.match(e.request);
+              if (existing) {
+                var newBody = await response.clone().text();
+                var oldBody = await existing.text();
+                if (newBody !== oldBody) {
+                  await cache.put(
+                    new Request('/__update_available__'),
+                    new Response('1')
+                  );
+                }
+              }
+            }
+
+            await cache.put(e.request, response.clone());
+          })
+          .catch(() => {});
+
+        if (cached) {
+          e.waitUntil(refresh);
+          return cached;
+        }
+
+        // Nothing cached yet — wait for network
+        return fetch(e.request).then(response => {
+          if (response.status === 200) cache.put(e.request, response.clone());
+          return response;
+        });
       })
     )
   );
