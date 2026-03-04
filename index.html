@@ -1901,7 +1901,7 @@ button:disabled {
 
   // iOS detection — no install prompt API, show manual instructions
   (function () {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
     const isStandalone = window.navigator.standalone === true;
     if (isIOS && !isStandalone) {
       menuIosEl.style.display = '';
