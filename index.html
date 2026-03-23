@@ -18,7 +18,7 @@
   padding: 0;
 }
 
-html, body {
+html, body { 
   color-scheme: dark;
   width: 100%;
   height: 100%;
@@ -175,6 +175,16 @@ button:disabled {
 
 #start-btn {
   margin-top: 10px;
+}
+
+#start-update-btn {
+  display: none;
+  margin-top: 12px;
+  padding: 10px 24px;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  text-transform: none;
+  opacity: 0.75;
 }
 
 .volume-control {
@@ -778,6 +788,7 @@ button:disabled {
     </div>
   </div>
   <button id="start-btn" disabled>Start</button>
+  <button id="start-update-btn" type="button">Update to Latest Version</button>
   <div class="volume-control">
     <svg class="volume-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="vol-wave-1" d="M15.54 8.46a5 5 0 010 7.07"/><path id="vol-wave-2" d="M19.07 4.93a10 10 0 010 14.14"/></svg>
     <input type="range" id="volume" min="0" max="100" value="80">
@@ -950,6 +961,7 @@ button:disabled {
   const meditationInput = document.getElementById('meditation');
   const leadOutInput = document.getElementById('lead-out');
   const startBtn = document.getElementById('start-btn');
+  const startUpdateBtn = document.getElementById('start-update-btn');
 
   const timerDisplay = document.getElementById('timer-display');
   const pauseBtn = document.getElementById('pause-btn');
@@ -1053,6 +1065,50 @@ button:disabled {
     if (endedEarly) return;
     updateAdditionalDisplay();
     additionalRAF = requestAnimationFrame(tickAdditional);
+  }
+
+  function setStartUpdateAvailable(available) {
+    startUpdateBtn.style.display = available ? 'inline-block' : 'none';
+    startUpdateBtn.disabled = false;
+    startUpdateBtn.textContent = 'Update to Latest Version';
+  }
+
+  function sendServiceWorkerMessage(message) {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+
+    return navigator.serviceWorker.ready.then(function (registration) {
+      return new Promise(function (resolve, reject) {
+        var worker = registration.active || navigator.serviceWorker.controller;
+        if (!worker) {
+          resolve(null);
+          return;
+        }
+
+        var channel = new MessageChannel();
+        var timeout = setTimeout(function () {
+          reject(new Error('Timed out waiting for service worker response'));
+        }, 5000);
+
+        channel.port1.onmessage = function (event) {
+          clearTimeout(timeout);
+          resolve(event.data || null);
+        };
+
+        worker.postMessage(message, [channel.port2]);
+      });
+    });
+  }
+
+  function refreshStartScreenUpdateState() {
+    return sendServiceWorkerMessage({ type: 'CHECK_FOR_UPDATE' })
+      .then(function (result) {
+        setStartUpdateAvailable(!!(result && result.available));
+      })
+      .catch(function () {});
+  }
+
+  function onStartScreenActivated() {
+    refreshStartScreenUpdateState();
   }
 
   function normalizeEmailAddress(value) {
@@ -1567,6 +1623,7 @@ button:disabled {
           target.classList.add('active', 'fade-in');
           setTimeout(() => {
             target.classList.remove('fade-in');
+            if (target === startScreen) onStartScreenActivated();
             resolve();
           }, FADE_MS);
         }, FADE_MS);
@@ -1574,6 +1631,7 @@ button:disabled {
         target.classList.add('active', 'fade-in');
         setTimeout(() => {
           target.classList.remove('fade-in');
+          if (target === startScreen) onStartScreenActivated();
           resolve();
         }, FADE_MS);
       }
@@ -1922,6 +1980,25 @@ button:disabled {
     startSession();
   });
 
+  startUpdateBtn.addEventListener('click', function () {
+    startUpdateBtn.disabled = true;
+    startUpdateBtn.textContent = 'Updating\u2026';
+
+    sendServiceWorkerMessage({ type: 'APPLY_UPDATE' })
+      .then(function (result) {
+        if (result && result.applied) {
+          location.reload();
+          return;
+        }
+
+        setStartUpdateAvailable(false);
+      })
+      .catch(function () {
+        startUpdateBtn.disabled = false;
+        startUpdateBtn.textContent = 'Update to Latest Version';
+      });
+  });
+
   pauseBtn.addEventListener('click', togglePause);
 
   endBtn.addEventListener('click', () => {
@@ -2189,14 +2266,6 @@ button:disabled {
   var appSource = initSource();
 
   // --- Init ---
-  if ('caches' in window) {
-    caches.open('meditation-cache').then(function (cache) {
-      cache.delete(new Request('/__update_available__')).then(function (found) {
-        if (found) location.reload();
-      });
-    });
-  }
-
   var PRECACHE_ASSETS = [
     'manifest.json',
     'sand.jpg',
@@ -2212,6 +2281,7 @@ button:disabled {
   })).then(function () {
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('start-screen').classList.add('active');
+    onStartScreenActivated();
     maybePromptForEmail();
   });
 

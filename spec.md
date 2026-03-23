@@ -27,6 +27,8 @@ After loading for the first time, the app shows a dialog asking "Can I have your
 
 There is a START button.
 
+If the service worker has already staged a newer version of the app, the start page also shows an update button. Pressing it reloads into the staged version.
+
 When the user presses start, we fade out the start page and enter the timer page.
 
 ### Timer page
@@ -72,3 +74,7 @@ POSTs are queued in localStorage (`meditation-post-queue`) and retried automatic
 - Immediately after queuing
 - On page load
 - When the browser comes back online (`online` event)
+
+## App Updates
+
+The service worker treats `index.html` as the update signal. Each time the start page becomes active, the page asks the service worker whether a staged update is already available. If not, the service worker starts a background fetch of `index.html`; when it detects a change, it stages the full asset set into a pending cache and marks the update as available for the next time the start page appears.
