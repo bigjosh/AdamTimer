@@ -465,6 +465,99 @@ button:disabled {
   color: #fff;
 }
 
+.email-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.82);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease, visibility 0s linear 200ms;
+  z-index: 40;
+}
+
+.email-dialog-overlay.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.email-dialog {
+  width: min(100%, 420px);
+  background: #101010;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 26px 22px 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.email-dialog h2 {
+  font-size: 30px;
+  font-weight: 200;
+  line-height: 1.15;
+  margin-bottom: 14px;
+}
+
+.email-dialog p {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.55;
+  opacity: 0.72;
+  margin-bottom: 18px;
+}
+
+.email-dialog input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 300;
+  padding: 14px 16px;
+  outline: none;
+}
+
+.email-dialog input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.email-dialog-message {
+  min-height: 20px;
+  font-size: 13px;
+  font-weight: 300;
+  color: #ffb3b3;
+  margin-top: 10px;
+}
+
+.email-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.email-dialog-actions button {
+  min-width: 96px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0.3px;
+}
+
+.email-dialog-submit {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+
 /* Stats Screen */
 #stats-screen {
   background: #000;
@@ -726,6 +819,7 @@ button:disabled {
   <div class="menu-items">
     <a class="menu-item" id="menu-statistics">Statistics</a>
     <a class="menu-item" id="menu-sounds">Sounds</a>
+    <a class="menu-item" id="menu-email">Email Address</a>
     <a class="menu-item" id="menu-update">Update</a>
     <a class="menu-item" id="menu-install" style="display:none">Install App</a>
     <div class="menu-item menu-ios" id="menu-ios" style="display:none">
@@ -795,6 +889,22 @@ button:disabled {
   <div class="session-list" id="session-list"></div>
 </div>
 
+<div class="email-dialog-overlay" id="email-dialog-overlay" inert>
+  <div class="email-dialog" role="dialog" aria-modal="true" aria-labelledby="email-dialog-title">
+    <form id="email-form">
+      <h2 id="email-dialog-title">Can I have your email address?</h2>
+      <p>If you give your email address, I will use it to study how people are using the app so I can make both the app and my course better. I will never share it with anyone and never spam you. If you do not want to share it, then press skip.</p>
+      <input type="email" id="email-input" aria-label="Email address" autocomplete="email" autocapitalize="none" spellcheck="false" inputmode="email" placeholder="name@example.com">
+      <div class="email-dialog-message" id="email-dialog-message"></div>
+      <div class="email-dialog-actions">
+        <button type="button" id="email-delete" style="display:none">Delete</button>
+        <button type="button" id="email-skip">Skip</button>
+        <button type="submit" class="email-dialog-submit">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="NoSleep.min.js"></script>
 <script>
 (function () {
@@ -814,6 +924,7 @@ button:disabled {
   const menuCloseBtn = document.getElementById('menu-close');
   const menuStatistics = document.getElementById('menu-statistics');
   const menuSoundsBtn = document.getElementById('menu-sounds');
+  const menuEmailBtn = document.getElementById('menu-email');
   const menuUpdateBtn = document.getElementById('menu-update');
   const menuInstallBtn = document.getElementById('menu-install');
   const menuIosEl = document.getElementById('menu-ios');
@@ -828,6 +939,12 @@ button:disabled {
   const soundLeadInSelect = document.getElementById('sound-leadin');
   const soundMeditationSelect = document.getElementById('sound-meditation');
   const soundLeadOutSelect = document.getElementById('sound-leadout');
+  const emailDialogOverlay = document.getElementById('email-dialog-overlay');
+  const emailForm = document.getElementById('email-form');
+  const emailInput = document.getElementById('email-input');
+  const emailSkipBtn = document.getElementById('email-skip');
+  const emailDeleteBtn = document.getElementById('email-delete');
+  const emailDialogMessage = document.getElementById('email-dialog-message');
 
   const leadInInput = document.getElementById('lead-in');
   const meditationInput = document.getElementById('meditation');
@@ -858,7 +975,7 @@ button:disabled {
   ];
   var SOUND_DEFAULTS = { leadIn: 'Wood Block', meditation: 'Gong 1', leadOut: 'Gong 5' };
 
-  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbz9ZkoVBwIEFjDVCPGkxANvmoekv6RaHNeoDcOKvl8OvwqxnaOfINHkwSlGaLV9fBhMMg/exec';
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec';
 
   var audioLeadIn, audioMeditation, audioLeadOut;
 
@@ -881,6 +998,8 @@ button:disabled {
   let endedEarly = 0;          // 0 or ms timestamp when End pressed
   let additionalRAF = null;
   let currentPhasePausedMs = 0; // accumulated pause ms for current phase
+  let emailDialogMode = 'settings';
+  let emailDialogReturnFocusEl = null;
   const phaseDataKey = { LEADIN: 'leadIn', MEDITATION: 'meditation', LEADOUT: 'leadOut' };
 
   // --- Helpers ---
@@ -934,6 +1053,93 @@ button:disabled {
     if (endedEarly) return;
     updateAdditionalDisplay();
     additionalRAF = requestAnimationFrame(tickAdditional);
+  }
+
+  function normalizeEmailAddress(value) {
+    return String(value || '').trim();
+  }
+
+  function isValidEmailAddress(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function loadEmailAddress() {
+    try {
+      return normalizeEmailAddress(localStorage.getItem('meditation-email') || '');
+    } catch (e) { return ''; }
+  }
+
+  function hasAskedForEmail() {
+    try {
+      return localStorage.getItem('meditation-email-prompted') === '1';
+    } catch (e) { return true; }
+  }
+
+  function markEmailPrompted() {
+    try { localStorage.setItem('meditation-email-prompted', '1'); } catch (e) {}
+  }
+
+  function saveEmailAddress(value) {
+    var email = normalizeEmailAddress(value);
+    try {
+      if (email) {
+        localStorage.setItem('meditation-email', email);
+      } else {
+        localStorage.removeItem('meditation-email');
+      }
+      localStorage.setItem('meditation-email-prompted', '1');
+    } catch (e) {}
+  }
+
+  function clearEmailAddress() {
+    try {
+      localStorage.removeItem('meditation-email');
+      localStorage.setItem('meditation-email-prompted', '1');
+    } catch (e) {}
+  }
+
+  function setEmailDialogMessage(message) {
+    emailDialogMessage.textContent = message || '';
+  }
+
+  function getEmailDialogReturnFocus() {
+    if (emailDialogReturnFocusEl &&
+        typeof emailDialogReturnFocusEl.focus === 'function' &&
+        document.contains(emailDialogReturnFocusEl) &&
+        !emailDialogReturnFocusEl.disabled) {
+      return emailDialogReturnFocusEl;
+    }
+    return hamburgerBtn;
+  }
+
+  function openEmailDialog(mode) {
+    var storedEmail = loadEmailAddress();
+    emailDialogReturnFocusEl = document.activeElement;
+    emailDialogMode = mode || 'settings';
+    emailInput.value = storedEmail;
+    emailDeleteBtn.style.display = emailDialogMode === 'settings' && storedEmail ? '' : 'none';
+    emailSkipBtn.textContent = emailDialogMode === 'first-run' ? 'Skip' : 'Cancel';
+    setEmailDialogMessage('');
+    emailDialogOverlay.removeAttribute('inert');
+    emailDialogOverlay.classList.add('active');
+    setTimeout(function () {
+      emailInput.focus();
+      emailInput.select();
+    }, 0);
+  }
+
+  function closeEmailDialog() {
+    if (emailDialogOverlay.contains(document.activeElement)) {
+      getEmailDialogReturnFocus().focus();
+    }
+    emailDialogOverlay.classList.remove('active');
+    emailDialogOverlay.setAttribute('inert', '');
+    setEmailDialogMessage('');
+  }
+
+  function maybePromptForEmail() {
+    if (hasAskedForEmail()) return;
+    openEmailDialog('first-run');
   }
 
   // --- localStorage persistence ---
@@ -1023,22 +1229,29 @@ button:disabled {
     } catch (e) { /* ignore */ }
   }
 
-  function queuePost(data) {
+  function buildPostPayload(action, source) {
     var payload = {
-      action: 'session',
-      source: appSource,
-      date: data.date,
-      v: data.v,
-      leadIn: data.leadIn,
-      meditation: data.meditation,
-      leadOut: data.leadOut,
-      leadInPaused: data.leadInPaused,
-      leadInCompleted: data.leadInCompleted,
-      meditationPaused: data.meditationPaused,
-      meditationCompleted: data.meditationCompleted,
-      leadOutCompleted: data.leadOutCompleted,
-      meditationLogged: data.meditationLogged
+      action: action,
+      source: source
     };
+    var email = loadEmailAddress();
+    if (email) payload.email = email;
+    return payload;
+  }
+
+  function queuePost(data) {
+    var payload = buildPostPayload('session', appSource);
+    payload.date = data.date;
+    payload.v = data.v;
+    payload.leadIn = data.leadIn;
+    payload.meditation = data.meditation;
+    payload.leadOut = data.leadOut;
+    payload.leadInPaused = data.leadInPaused;
+    payload.leadInCompleted = data.leadInCompleted;
+    payload.meditationPaused = data.meditationPaused;
+    payload.meditationCompleted = data.meditationCompleted;
+    payload.leadOutCompleted = data.leadOutCompleted;
+    payload.meditationLogged = data.meditationLogged;
     var queue = loadPostQueue();
     queue.push(payload);
     savePostQueue(queue);
@@ -1673,6 +1886,35 @@ button:disabled {
     });
   });
 
+  emailForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = normalizeEmailAddress(emailInput.value);
+    if (!email) {
+      setEmailDialogMessage('Enter an email address or press ' + emailSkipBtn.textContent + '.');
+      emailInput.focus();
+      return;
+    }
+    if (!isValidEmailAddress(email)) {
+      setEmailDialogMessage('Please enter a valid email address.');
+      emailInput.focus();
+      return;
+    }
+    saveEmailAddress(email);
+    closeEmailDialog();
+  });
+
+  emailSkipBtn.addEventListener('click', function () {
+    if (emailDialogMode === 'first-run') {
+      markEmailPrompted();
+    }
+    closeEmailDialog();
+  });
+
+  emailDeleteBtn.addEventListener('click', function () {
+    clearEmailAddress();
+    closeEmailDialog();
+  });
+
   startBtn.addEventListener('click', () => {
     if (startBtn.disabled) return;
     // Enable wake lock immediately on user gesture (iOS requires this)
@@ -1819,6 +2061,10 @@ button:disabled {
     showScreen(settingsScreen);
   });
 
+  menuEmailBtn.addEventListener('click', () => {
+    openEmailDialog('settings');
+  });
+
   settingsCloseBtn.addEventListener('click', () => {
     showScreen(menuScreen);
   });
@@ -1924,7 +2170,7 @@ button:disabled {
         var prev = localStorage.getItem('meditation-source');
         if (prev && prev !== query) {
           var queue = loadPostQueue();
-          queue.push({ action: 'changed', source: prev });
+          queue.push(buildPostPayload('changed', prev));
           savePostQueue(queue);
         }
         localStorage.setItem('meditation-source', query);
@@ -1966,6 +2212,7 @@ button:disabled {
   })).then(function () {
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('start-screen').classList.add('active');
+    maybePromptForEmail();
   });
 
   loadSettings();
@@ -1976,17 +2223,16 @@ button:disabled {
   validateInputs();
   window.addEventListener('appinstalled', function () {
     var queue = loadPostQueue();
-    queue.push({ action: 'install', source: appSource });
+    queue.push(buildPostPayload('install', appSource));
     savePostQueue(queue);
     flushPostQueue();
   });
   flushPostQueue();
   window.addEventListener('online', flushPostQueue);
 
-  // Register service worker
+  // Register service worker uniformly across local and deployed environments.
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
-      .then(function (reg) { reg.update(); })
       .catch(function () {});
   }
 })();

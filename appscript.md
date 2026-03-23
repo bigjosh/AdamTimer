@@ -1,4 +1,4 @@
-# Meditation Timer — Google Sheets Logging
+# Meditation Timer - Google Sheets Logging
 
 This Apps Script receives session data from the Meditation Timer app via POST and appends each session as a row in a Google Sheet.
 
@@ -7,7 +7,7 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | Column | Field |
 |--------|-------|
 | A | Timestamp (server-side, when the row was written) |
-| B | Action (`"session"`, `"install"`, or `"changed"` — see Action Types below) |
+| B | Action (`"session"`, `"install"`, or `"changed"` - see Action Types below) |
 | C | Source (identifies which device/install sent the data) |
 | D | Date (ISO string from the client when the session started) |
 | E | Version (data format version) |
@@ -20,14 +20,19 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | L | Meditation Completed (seconds of meditation actually completed) |
 | M | Lead Out Completed (seconds of lead out actually completed) |
 | N | Meditation Logged (seconds the user chose to log, may include additional time) |
+| O | Email Address (optional, provided by the user) |
 
 ## Action Types
 
 | Action | When it fires | Fields populated |
 |--------|---------------|------------------|
-| `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | All columns (D–N) |
-| `install` | User installs the PWA on their device | Only Source (C); columns D–N are blank |
-| `changed` | A URL query string overwrites an existing source | Source (C) contains the **old** source; columns D–N are blank |
+| `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | Source (C), session fields (D-N), and optional Email Address (O) |
+| `install` | User installs the PWA on their device | Source (C) and optional Email Address (O); columns D-N are blank |
+| `changed` | A URL query string overwrites an existing source | Source (C) contains the old source, Email Address (O) is optional, and columns D-N are blank |
+
+If you already have an older sheet without the email column, the updated script rewrites row 1 with the new header set before appending data.
+
+The script now writes to the first sheet in the spreadsheet by default. If you want a specific tab, set `SHEET_NAME` in `appscript.js`.
 
 ## Setup
 
@@ -40,14 +45,14 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 7. Set **Execute as** to **Me**.
 8. Set **Who has access** to **Anyone**.
 9. Click **Deploy** and authorize when prompted.
-10. Copy the **Web app URL** — this is the endpoint the timer app will POST to.
+10. Copy the **Web app URL** - this is the endpoint the timer app will POST to.
 
 ## Testing
 
 You can verify the endpoint is active with a GET request:
 
-```
-curl https://script.google.com/macros/s/AKfycbz9ZkoVBwIEFjDVCPGkxANvmoekv6RaHNeoDcOKvl8OvwqxnaOfINHkwSlGaLV9fBhMMg/exec
+```bash
+curl https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
 ```
 
 Expected response: `{"status":"ok","message":"Meditation Timer endpoint is active."}`
@@ -56,19 +61,19 @@ Expected response: `{"status":"ok","message":"Meditation Timer endpoint is activ
 
 Google Apps Script returns a 302 redirect with the JSON response encoded in the redirect URL. This means:
 
-- **From the browser** (`fetch`): works naturally — the browser handles the redirect and the script executes.
-- **From curl**: do NOT use `-L` (follow redirects) as curl will replay the POST to a different host and fail. Instead, fire the POST and check the response headers.
+- From the browser (`fetch`): works naturally - the browser handles the redirect and the script executes.
+- From curl: do not use `-L` (follow redirects) because curl will replay the POST to a different host and fail. Instead, fire the POST and check the response headers.
 
 **bash/macOS/Linux:**
 
-```
-curl -s -D - -o /dev/null -X POST -H 'Content-Type: application/json' -d '{"action":"session","source":"test","date":"2026-03-02T12:00:00Z","v":3,"leadIn":60,"meditation":600,"leadOut":60,"leadInPaused":0,"leadInCompleted":60,"meditationPaused":0,"meditationCompleted":600,"leadOutCompleted":60,"meditationLogged":600}' https://script.google.com/macros/s/AKfycbz9ZkoVBwIEFjDVCPGkxANvmoekv6RaHNeoDcOKvl8OvwqxnaOfINHkwSlGaLV9fBhMMg/exec
+```bash
+curl -s -D - -o /dev/null -X POST -H 'Content-Type: application/json' -d '{"action":"session","source":"test","email":"person@example.com","date":"2026-03-02T12:00:00Z","v":3,"leadIn":60,"meditation":600,"leadOut":60,"leadInPaused":0,"leadInCompleted":60,"meditationPaused":0,"meditationCompleted":600,"leadOutCompleted":60,"meditationLogged":600}' https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
 ```
 
 **Windows cmd:**
 
-```
-curl -s -D - -o NUL -X POST -H "Content-Type: application/json" -d "{\"action\":\"session\",\"source\":\"test\",\"date\":\"2026-03-02T12:00:00Z\",\"v\":3,\"leadIn\":60,\"meditation\":600,\"leadOut\":60,\"leadInPaused\":0,\"leadInCompleted\":60,\"meditationPaused\":0,\"meditationCompleted\":600,\"leadOutCompleted\":60,\"meditationLogged\":600}" https://script.google.com/macros/s/AKfycbz9ZkoVBwIEFjDVCPGkxANvmoekv6RaHNeoDcOKvl8OvwqxnaOfINHkwSlGaLV9fBhMMg/exec
+```bash
+curl -s -D - -o NUL -X POST -H "Content-Type: application/json" -d "{\"action\":\"session\",\"source\":\"test\",\"email\":\"person@example.com\",\"date\":\"2026-03-02T12:00:00Z\",\"v\":3,\"leadIn\":60,\"meditation\":600,\"leadOut\":60,\"leadInPaused\":0,\"leadInCompleted\":60,\"meditationPaused\":0,\"meditationCompleted\":600,\"leadOutCompleted\":60,\"meditationLogged\":600}" https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
 ```
 
 A `302` response means the script executed successfully. To see the actual JSON response, GET the URL from the `Location` header. A new row should appear in the spreadsheet.

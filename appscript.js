@@ -15,19 +15,49 @@ var HEADERS = [
   'Meditation Paused',
   'Meditation Completed',
   'Lead Out Completed',
-  'Meditation Logged'
+  'Meditation Logged',
+  'Email Address'
 ];
+
+// Set this to a specific sheet tab name to avoid ambiguity.
+var SHEET_NAME = 'LOG';
+
+function getTargetSheet() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  var namedSheet = spreadsheet.getSheetByName(SHEET_NAME);
+  if (!namedSheet) {
+    throw new Error('Sheet not found: ' + SHEET_NAME);
+  }
+  return namedSheet;
+}
+
+function ensureHeaders(sheet) {
+  var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS);
+    headerRange.setFontWeight('bold');
+    return;
+  }
+
+  var currentHeaders = headerRange.getValues()[0];
+  var needsUpdate = HEADERS.some(function(header, index) {
+    return currentHeaders[index] !== header;
+  });
+
+  if (needsUpdate) {
+    headerRange.setValues([HEADERS]);
+    headerRange.setFontWeight('bold');
+  }
+}
 
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var sheet = getTargetSheet();
 
-    // Add headers if the sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(HEADERS);
-      sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold');
-    }
+    ensureHeaders(sheet);
 
     var row = [
       new Date(),
@@ -43,13 +73,14 @@ function doPost(e) {
       data.meditationPaused || 0,
       data.meditationCompleted || 0,
       data.leadOutCompleted || 0,
-      data.meditationLogged || 0
+      data.meditationLogged || 0,
+      data.email || ''
     ];
 
     sheet.appendRow(row);
 
     return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok' }))
+      .createTextOutput(JSON.stringify({ status: 'ok', sheet: sheet.getName() }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService

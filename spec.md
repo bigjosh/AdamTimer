@@ -6,6 +6,8 @@ Single Page Web App. Designed to look simple and modern - especially on mobile. 
 
 Easily installable on homepage on mobile.  Uses js libs to keep phone from falling asleep after user presses start button. 
 
+On first startup, the app asks for an optional email address. If provided, the app includes it with spreadsheet logging so usage can be studied. The user can later update or delete it from the menu.
+
 ## UI
 
 all page transitions are smoothed with 250ms fade-in and fade-out. 
@@ -20,6 +22,8 @@ There a three fillable fields (all in minutes 0-999) for ...
 * lead out (default 0)
 
 All fields are persistent via cookies. 
+
+After loading for the first time, the app shows a dialog asking "Can I have your email address?" with an email field and skip/submit actions. Sharing is optional.
 
 There is a START button.
 
@@ -59,6 +63,8 @@ Three event types are logged:
 - **session** — when the user logs a meditation session
 - **install** — when the user installs the PWA (via the browser `appinstalled` event)
 - **changed** — when a URL query string overwrites an existing source identifier (logs the old source)
+
+If the user has provided an email address, it is included in the spreadsheet POST payload.
 
 ### Offline queue
 
