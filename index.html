@@ -987,7 +987,7 @@ button:disabled {
   ];
   var SOUND_DEFAULTS = { leadIn: 'Wood Block', meditation: 'Gong 1', leadOut: 'Gong 5' };
 
-  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec';
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbztPI-tkV2t_d3e7QQv_WZ7kOL8QWu5cmrsss8vTc2W8bpJDX9MS4lXWPFV_0F5_LX3sw/exec';
 
   var audioLeadIn, audioMeditation, audioLeadOut;
 
@@ -1285,18 +1285,20 @@ button:disabled {
     } catch (e) { /* ignore */ }
   }
 
-  function buildPostPayload(action, source) {
+  function buildPostPayload(action, groupIdOverride) {
     var payload = {
       action: action,
-      source: source
+      userId: appUserId
     };
+    var groupId = groupIdOverride !== undefined ? groupIdOverride : appGroupId;
+    if (groupId) payload.groupId = groupId;
     var email = loadEmailAddress();
     if (email) payload.email = email;
     return payload;
   }
 
   function queuePost(data) {
-    var payload = buildPostPayload('session', appSource);
+    var payload = buildPostPayload('session');
     payload.date = data.date;
     payload.v = data.v;
     payload.leadIn = data.leadIn;
@@ -2231,39 +2233,53 @@ button:disabled {
     }
   })();
 
-  // --- Source ---
+  // --- User ID ---
   var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
 
-  function generateSource() {
+  function generateUserId() {
     var s = '';
     for (var i = 0; i < 10; i++) s += ZBASE32[Math.floor(Math.random() * 32)];
     return s;
   }
 
-  function initSource() {
+  function initUserId() {
+    try {
+      var stored = localStorage.getItem('meditation-user-id');
+      if (stored) return stored;
+      var legacy = localStorage.getItem('meditation-source');
+      if (legacy) {
+        localStorage.setItem('meditation-user-id', legacy);
+        localStorage.removeItem('meditation-source');
+        return legacy;
+      }
+    } catch (e) {}
+    var generated = generateUserId();
+    try { localStorage.setItem('meditation-user-id', generated); } catch (e) {}
+    return generated;
+  }
+
+  // --- Group ID ---
+  function initGroupId() {
     var query = location.search.replace(/^\?/, '');
     if (query) {
       try {
-        var prev = localStorage.getItem('meditation-source');
+        var prev = localStorage.getItem('meditation-group-id');
         if (prev && prev !== query) {
           var queue = loadPostQueue();
           queue.push(buildPostPayload('changed', prev));
           savePostQueue(queue);
         }
-        localStorage.setItem('meditation-source', query);
+        localStorage.setItem('meditation-group-id', query);
       } catch (e) {}
       return query;
     }
     try {
-      var stored = localStorage.getItem('meditation-source');
-      if (stored) return stored;
-    } catch (e) {}
-    var generated = generateSource();
-    try { localStorage.setItem('meditation-source', generated); } catch (e) {}
-    return generated;
+      return localStorage.getItem('meditation-group-id') || '';
+    } catch (e) { return ''; }
   }
 
-  var appSource = initSource();
+  var appUserId = initUserId();
+  var appGroupId = initGroupId();
 
   // --- Init ---
   var PRECACHE_ASSETS = [
@@ -2293,7 +2309,7 @@ button:disabled {
   validateInputs();
   window.addEventListener('appinstalled', function () {
     var queue = loadPostQueue();
-    queue.push(buildPostPayload('install', appSource));
+    queue.push(buildPostPayload('install'));
     savePostQueue(queue);
     flushPostQueue();
   });

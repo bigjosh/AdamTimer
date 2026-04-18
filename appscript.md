@@ -8,7 +8,7 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 |--------|-------|
 | A | Timestamp (server-side, when the row was written) |
 | B | Action (`"session"`, `"install"`, or `"changed"` - see Action Types below) |
-| C | Source (identifies which device/install sent the data) |
+| C | User ID (stable per-device identifier, randomly generated on first pageload) |
 | D | Date (ISO string from the client when the session started) |
 | E | Version (data format version) |
 | F | Lead In (configured duration in seconds) |
@@ -21,14 +21,15 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | M | Lead Out Completed (seconds of lead out actually completed) |
 | N | Meditation Logged (seconds the user chose to log, may include additional time) |
 | O | Email Address (optional, provided by the user) |
+| P | Group ID (optional, supplied via URL query string and sticky across loads) |
 
 ## Action Types
 
 | Action | When it fires | Fields populated |
 |--------|---------------|------------------|
-| `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | Source (C), session fields (D-N), and optional Email Address (O) |
-| `install` | User installs the PWA on their device | Source (C) and optional Email Address (O); columns D-N are blank |
-| `changed` | A URL query string overwrites an existing source | Source (C) contains the old source, Email Address (O) is optional, and columns D-N are blank |
+| `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | User ID (C), session fields (D-N), optional Email Address (O), optional Group ID (P) |
+| `install` | User installs the PWA on their device | User ID (C), optional Email Address (O) and Group ID (P); columns D-N are blank |
+| `changed` | A URL query string replaces the stored group-id | User ID (C) is the current user, Group ID (P) contains the **old** group-id, Email Address (O) is optional, and columns D-N are blank |
 
 If you already have an older sheet without the email column, the updated script rewrites row 1 with the new header set before appending data.
 
@@ -52,7 +53,7 @@ The script now writes to the first sheet in the spreadsheet by default. If you w
 You can verify the endpoint is active with a GET request:
 
 ```bash
-curl https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
+curl https://script.google.com/macros/s/AKfycbztPI-tkV2t_d3e7QQv_WZ7kOL8QWu5cmrsss8vTc2W8bpJDX9MS4lXWPFV_0F5_LX3sw/exec
 ```
 
 Expected response: `{"status":"ok","message":"Meditation Timer endpoint is active."}`
@@ -67,13 +68,13 @@ Google Apps Script returns a 302 redirect with the JSON response encoded in the 
 **bash/macOS/Linux:**
 
 ```bash
-curl -s -D - -o /dev/null -X POST -H 'Content-Type: application/json' -d '{"action":"session","source":"test","email":"person@example.com","date":"2026-03-02T12:00:00Z","v":3,"leadIn":60,"meditation":600,"leadOut":60,"leadInPaused":0,"leadInCompleted":60,"meditationPaused":0,"meditationCompleted":600,"leadOutCompleted":60,"meditationLogged":600}' https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
+curl -s -D - -o /dev/null -X POST -H 'Content-Type: application/json' -d '{"action":"session","userId":"test","groupId":"mygroup","email":"person@example.com","date":"2026-03-02T12:00:00Z","v":3,"leadIn":60,"meditation":600,"leadOut":60,"leadInPaused":0,"leadInCompleted":60,"meditationPaused":0,"meditationCompleted":600,"leadOutCompleted":60,"meditationLogged":600}' https://script.google.com/macros/s/AKfycbztPI-tkV2t_d3e7QQv_WZ7kOL8QWu5cmrsss8vTc2W8bpJDX9MS4lXWPFV_0F5_LX3sw/exec
 ```
 
 **Windows cmd:**
 
 ```bash
-curl -s -D - -o NUL -X POST -H "Content-Type: application/json" -d "{\"action\":\"session\",\"source\":\"test\",\"email\":\"person@example.com\",\"date\":\"2026-03-02T12:00:00Z\",\"v\":3,\"leadIn\":60,\"meditation\":600,\"leadOut\":60,\"leadInPaused\":0,\"leadInCompleted\":60,\"meditationPaused\":0,\"meditationCompleted\":600,\"leadOutCompleted\":60,\"meditationLogged\":600}" https://script.google.com/macros/s/AKfycbwoHsydcHlE90CxgfC3DkdGSFxV3GpI63bDn5Fedti_ZYvfvNL-Tfpzr0IVzZDCts5ZYA/exec
+curl -s -D - -o NUL -X POST -H "Content-Type: application/json" -d "{\"action\":\"session\",\"userId\":\"test\",\"groupId\":\"mygroup\",\"email\":\"person@example.com\",\"date\":\"2026-03-02T12:00:00Z\",\"v\":3,\"leadIn\":60,\"meditation\":600,\"leadOut\":60,\"leadInPaused\":0,\"leadInCompleted\":60,\"meditationPaused\":0,\"meditationCompleted\":600,\"leadOutCompleted\":60,\"meditationLogged\":600}" https://script.google.com/macros/s/AKfycbztPI-tkV2t_d3e7QQv_WZ7kOL8QWu5cmrsss8vTc2W8bpJDX9MS4lXWPFV_0F5_LX3sw/exec
 ```
 
 A `302` response means the script executed successfully. To see the actual JSON response, GET the URL from the `Location` header. A new row should appear in the spreadsheet.

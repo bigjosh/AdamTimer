@@ -4,7 +4,7 @@
 var HEADERS = [
   'Timestamp',
   'Action',
-  'Source',
+  'User ID',
   'Date',
   'Version',
   'Lead In',
@@ -16,7 +16,8 @@ var HEADERS = [
   'Meditation Completed',
   'Lead Out Completed',
   'Meditation Logged',
-  'Email Address'
+  'Email Address',
+  'Group ID'
 ];
 
 // Set this to a specific sheet tab name to avoid ambiguity.
@@ -62,7 +63,7 @@ function doPost(e) {
     var row = [
       new Date(),
       data.action || '',
-      data.source || '',
+      data.userId || '',
       data.date || '',
       data.v || '',
       data.leadIn || 0,
@@ -74,7 +75,8 @@ function doPost(e) {
       data.meditationCompleted || 0,
       data.leadOutCompleted || 0,
       data.meditationLogged || 0,
-      data.email || ''
+      data.email || '',
+      data.groupId || ''
     ];
 
     sheet.appendRow(row);

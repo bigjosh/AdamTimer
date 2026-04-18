@@ -64,7 +64,7 @@ When a session is logged, the app POSTs session data to a Google Apps Script end
 Three event types are logged:
 - **session** — when the user logs a meditation session
 - **install** — when the user installs the PWA (via the browser `appinstalled` event)
-- **changed** — when a URL query string overwrites an existing source identifier (logs the old source)
+- **changed** — when a URL query string replaces the stored group-id (logs the old group-id)
 
 If the user has provided an email address, it is included in the spreadsheet POST payload.
 
