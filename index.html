@@ -187,46 +187,6 @@ button:disabled {
   opacity: 0.75;
 }
 
-.volume-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  opacity: 0.6;
-}
-
-.volume-icon {
-  flex-shrink: 0;
-}
-
-#volume {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 120px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 1px;
-  outline: none;
-}
-
-#volume::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: none;
-}
-
-#volume::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: none;
-}
-
 .additional-time {
   display: flex;
   align-items: center;
@@ -789,10 +749,6 @@ button:disabled {
   </div>
   <button id="start-btn" disabled>Start</button>
   <button id="start-update-btn" type="button">Update to Latest Version</button>
-  <div class="volume-control">
-    <svg class="volume-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="vol-wave-1" d="M15.54 8.46a5 5 0 010 7.07"/><path id="vol-wave-2" d="M19.07 4.93a10 10 0 010 14.14"/></svg>
-    <input type="range" id="volume" min="0" max="100" value="80">
-  </div>
 </div>
 
 <!-- Timer Screen -->
@@ -1640,35 +1596,6 @@ button:disabled {
     });
   }
 
-  // --- Volume ---
-  const volumeSlider = document.getElementById('volume');
-  const volWave1 = document.getElementById('vol-wave-1');
-  const volWave2 = document.getElementById('vol-wave-2');
-
-  function applyVolume(v) {
-    var vol = v / 100;
-    if (audioLeadIn) audioLeadIn.volume = vol;
-    if (audioMeditation) audioMeditation.volume = vol;
-    if (audioLeadOut) audioLeadOut.volume = vol;
-    // Update icon waves visibility
-    volWave1.style.opacity = v > 0 ? 1 : 0;
-    volWave2.style.opacity = v > 40 ? 1 : 0;
-  }
-
-  function loadVolume() {
-    try {
-      var v = localStorage.getItem('meditation-volume');
-      if (v !== null) { volumeSlider.value = v; }
-    } catch (e) {}
-    applyVolume(Number(volumeSlider.value));
-  }
-
-  volumeSlider.addEventListener('input', function () {
-    var v = Number(volumeSlider.value);
-    applyVolume(v);
-    try { localStorage.setItem('meditation-volume', v); } catch (e) {}
-  });
-
   // --- Audio ---
   function primeAudio() {
     [audioLeadIn, audioMeditation, audioLeadOut].forEach(function (a) {
@@ -2065,7 +1992,6 @@ button:disabled {
     audioLeadIn.muted = true;
     audioMeditation.muted = true;
     audioLeadOut.muted = true;
-    applyVolume(Number(volumeSlider.value));
   }
 
   function saveSoundSettings(obj) {
@@ -2118,7 +2044,6 @@ button:disabled {
     var file = findSoundFile(selectEl.value);
     if (file) {
       var preview = new Audio(file);
-      preview.volume = Number(volumeSlider.value) / 100;
       preview.play().catch(function () {});
     }
   }
@@ -2304,7 +2229,6 @@ button:disabled {
   loadSettings();
   populateSoundSelects(loadSoundSettings());
   cacheAllSounds();
-  loadVolume();
   createSessionAudio();
   validateInputs();
   window.addEventListener('appinstalled', function () {
