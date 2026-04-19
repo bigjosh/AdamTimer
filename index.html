@@ -1241,22 +1241,31 @@ button:disabled {
     } catch (e) { /* ignore */ }
   }
 
-  function buildPostPayload(action, groupIdOverride) {
+  var LOG_VERSION = 3;
+
+  function createLogPayload(action) {
     var payload = {
       action: action,
+      date: new Date().toISOString(),
+      v: LOG_VERSION,
       userId: appUserId
     };
-    var groupId = groupIdOverride !== undefined ? groupIdOverride : appGroupId;
-    if (groupId) payload.groupId = groupId;
+    if (appGroupId) payload.groupId = appGroupId;
     var email = loadEmailAddress();
     if (email) payload.email = email;
     return payload;
   }
 
-  function queuePost(data) {
-    var payload = buildPostPayload('session');
+  function enqueueAndFlush(payload) {
+    var queue = loadPostQueue();
+    queue.push(payload);
+    savePostQueue(queue);
+    flushPostQueue();
+  }
+
+  function logSession(data) {
+    var payload = createLogPayload('session');
     payload.date = data.date;
-    payload.v = data.v;
     payload.leadIn = data.leadIn;
     payload.meditation = data.meditation;
     payload.leadOut = data.leadOut;
@@ -1266,10 +1275,17 @@ button:disabled {
     payload.meditationCompleted = data.meditationCompleted;
     payload.leadOutCompleted = data.leadOutCompleted;
     payload.meditationLogged = data.meditationLogged;
-    var queue = loadPostQueue();
-    queue.push(payload);
-    savePostQueue(queue);
-    flushPostQueue();
+    enqueueAndFlush(payload);
+  }
+
+  function logInstall() {
+    enqueueAndFlush(createLogPayload('install'));
+  }
+
+  function logGroupChanged(oldGroupId) {
+    var payload = createLogPayload('changed');
+    payload.groupId = oldGroupId;
+    enqueueAndFlush(payload);
   }
 
   function flushPostQueue() {
@@ -1937,7 +1953,7 @@ button:disabled {
   logYes.addEventListener('click', () => {
     cancelAnimationFrame(additionalRAF);
     saveSession(sessionData);
-    queuePost(sessionData);
+    logSession(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
       validateInputs();
@@ -1958,7 +1974,7 @@ button:disabled {
     var addSec = getAdditionalSeconds();
     sessionData.meditationLogged = sessionData.meditationCompleted + addSec;
     saveSession(sessionData);
-    queuePost(sessionData);
+    logSession(sessionData);
     showScreen(startScreen).then(() => {
       startBtn.disabled = false;
       validateInputs();
@@ -2190,9 +2206,7 @@ button:disabled {
       try {
         var prev = localStorage.getItem('meditation-group-id');
         if (prev && prev !== query) {
-          var queue = loadPostQueue();
-          queue.push(buildPostPayload('changed', prev));
-          savePostQueue(queue);
+          logGroupChanged(prev);
         }
         localStorage.setItem('meditation-group-id', query);
       } catch (e) {}
@@ -2231,12 +2245,7 @@ button:disabled {
   cacheAllSounds();
   createSessionAudio();
   validateInputs();
-  window.addEventListener('appinstalled', function () {
-    var queue = loadPostQueue();
-    queue.push(buildPostPayload('install'));
-    savePostQueue(queue);
-    flushPostQueue();
-  });
+  window.addEventListener('appinstalled', logInstall);
   flushPostQueue();
   window.addEventListener('online', flushPostQueue);
 

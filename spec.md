@@ -66,7 +66,7 @@ Three event types are logged:
 - **install** — when the user installs the PWA (via the browser `appinstalled` event)
 - **changed** — when a URL query string replaces the stored group-id (logs the old group-id)
 
-If the user has provided an email address, it is included in the spreadsheet POST payload.
+Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. Session events add the per-session duration/completion fields on top.
 
 ### Offline queue
 
