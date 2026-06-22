@@ -7,9 +7,9 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | Column | Field |
 |--------|-------|
 | A | Timestamp (server-side, when the row was written) |
-| B | Action (`"session"`, `"install"`, or `"changed"` - see Action Types below) |
+| B | Action (`"session"`, `"install"`, `"installed"`, or `"changed"` - see Action Types below) |
 | C | User ID (stable per-device identifier, randomly generated on first pageload) |
-| D | Date (ISO string from the client; session start time for `session`, log time for `install` / `changed`) |
+| D | Date (ISO string from the client; session start time for `session`, log time for `install` / `installed` / `changed`) |
 | E | Version (log payload format version) |
 | F | Lead In (configured duration in seconds) |
 | G | Meditation (configured duration in seconds) |
@@ -30,7 +30,8 @@ Every row populates the common fields: User ID (C), Date (D), Version (E), and â
 | Action | When it fires | Action-specific fields |
 |--------|---------------|------------------------|
 | `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | Session fields F-N (durations and completed/paused times); Date (D) reflects the session start time |
-| `install` | User installs the PWA on their device | None; columns F-N are blank |
+| `install` | User installs the PWA on their device (browser `appinstalled` event; **not fired on iOS Safari**) | None; columns F-N are blank |
+| `installed` | First launch of the app as an installed PWA (fires once per install; covers iOS, where `install` is unavailable) | None; columns F-N are blank |
 | `changed` | A URL query string replaces the stored group-id | Group ID (P) contains the **old** (pre-switch) group-id; columns F-N are blank |
 
 If you already have an older sheet without the email column, the updated script rewrites row 1 with the new header set before appending data.

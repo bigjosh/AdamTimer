@@ -1282,6 +1282,22 @@ button:disabled {
     enqueueAndFlush(createLogPayload('install'));
   }
 
+  // Fired once, on the first time the app is launched as an installed PWA.
+  // This is distinct from the 'install' action (the browser's appinstalled
+  // event), which iOS never fires. The "already logged" flag lives entirely
+  // within the standalone context, so localStorage is safe here — it never
+  // needs to cross the Safari <-> standalone storage boundary.
+  function logInstalledOnFirstLaunch() {
+    var standalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (!standalone) return;
+    try {
+      if (localStorage.getItem('meditation-installed') === '1') return;
+      localStorage.setItem('meditation-installed', '1');
+    } catch (e) { /* if storage is unavailable, fall through and log once */ }
+    enqueueAndFlush(createLogPayload('installed'));
+  }
+
   function logGroupChanged(oldGroupId) {
     var payload = createLogPayload('changed');
     payload.groupId = oldGroupId;
@@ -2219,6 +2235,10 @@ button:disabled {
 
   var appUserId = initUserId();
   var appGroupId = initGroupId();
+
+  // Log the first launch as an installed PWA (covers iOS, which never fires
+  // the appinstalled event).
+  logInstalledOnFirstLaunch();
 
   // --- Init ---
   var PRECACHE_ASSETS = [
