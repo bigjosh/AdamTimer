@@ -1,4 +1,7 @@
 const META_CACHE_NAME = 'meditation-meta';
+// Shared identity record (user id / group id / email) mirrored across the
+// iOS Safari <-> standalone boundary by the page. Must survive cache cleanup.
+const IDENTITY_CACHE_NAME = 'meditation-identity';
 const META_REQUEST = new Request(new URL('__sw_meta__', self.registration.scope).toString());
 const DEFAULT_ACTIVE_CACHE = 'meditation-cache-active';
 const APP_SHELL_CACHE_REQUEST = new Request(new URL('__app_shell__', self.registration.scope).toString());
@@ -83,6 +86,7 @@ function getCacheKey(request, url) {
 async function cleanupCaches(meta) {
   var keep = {};
   keep[META_CACHE_NAME] = true;
+  keep[IDENTITY_CACHE_NAME] = true;
   keep[meta.activeCache || DEFAULT_ACTIVE_CACHE] = true;
   if (meta.pendingCache) keep[meta.pendingCache] = true;
 

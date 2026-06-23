@@ -1088,26 +1088,24 @@ button:disabled {
   }
 
   function markEmailPrompted() {
-    try { localStorage.setItem('meditation-email-prompted', '1'); } catch (e) {}
+    setIdentityValue('emailPrompted', '1');
   }
 
   function saveEmailAddress(value) {
     var email = normalizeEmailAddress(value);
-    try {
-      if (email) {
-        localStorage.setItem('meditation-email', email);
-      } else {
-        localStorage.removeItem('meditation-email');
-      }
-      localStorage.setItem('meditation-email-prompted', '1');
-    } catch (e) {}
+    touchIdentityField('email', email);
+    touchIdentityField('emailPrompted', '1');
+    syncIdentityWithCache();
   }
 
   function clearEmailAddress() {
-    try {
-      localStorage.removeItem('meditation-email');
-      localStorage.setItem('meditation-email-prompted', '1');
-    } catch (e) {}
+    touchIdentityField('email', '');
+    touchIdentityField('emailPrompted', '1');
+    // Explicit deletion is authoritative: clear the value in the shared cache
+    // too, so it isn't re-hydrated from the other context. (The passive merge
+    // keeps a blank from overwriting a non-blank value; an explicit delete
+    // overrides that for this field.)
+    deleteIdentityFieldInCache('email');
   }
 
   function setEmailDialogMessage(message) {
@@ -1150,7 +1148,9 @@ button:disabled {
   }
 
   function maybePromptForEmail() {
-    if (hasAskedForEmail()) return;
+    // Skip if we've already asked, or if an email was inherited from the other
+    // context (Safari <-> installed app) via identity sync.
+    if (hasAskedForEmail() || loadEmailAddress()) return;
     openEmailDialog('first-run');
   }
 
@@ -2190,6 +2190,144 @@ button:disabled {
     }
   })();
 
+  // --- Cross-context identity sync (iOS Safari <-> installed PWA) ---
+  // On iOS, an installed home-screen web app gets its own localStorage that is
+  // NOT shared with Safari, so the user id, group id, and email captured before
+  // install are lost (causing missing group ids and repeated email prompts).
+  // CacheStorage, however, IS shared across that boundary, so we mirror these
+  // identity fields through a shared cache record. Sync is two-way and
+  // last-write-wins per field (each datum carries a timestamp); a blank value
+  // never overwrites a non-blank one.
+  var IDENTITY_CACHE_NAME = 'meditation-identity';
+  var IDENTITY_CACHE_KEY = '__identity__';
+  var IDENTITY_FIELDS = {
+    userId: 'meditation-user-id',
+    groupId: 'meditation-group-id',
+    email: 'meditation-email',
+    emailPrompted: 'meditation-email-prompted'
+  };
+
+  function loadIdentityTimestamps() {
+    try { return JSON.parse(localStorage.getItem('meditation-identity-ts') || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  function saveIdentityTimestamps(ts) {
+    try { localStorage.setItem('meditation-identity-ts', JSON.stringify(ts)); } catch (e) {}
+  }
+
+  function readLocalIdentityValue(key) {
+    try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+  }
+
+  // Update a field's local value + timestamp (without touching the cache).
+  function touchIdentityField(name, value) {
+    var key = IDENTITY_FIELDS[name];
+    try {
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch (e) {}
+    var ts = loadIdentityTimestamps();
+    ts[name] = Date.now();
+    saveIdentityTimestamps(ts);
+  }
+
+  // Update a field locally and push the change to the shared cache.
+  function setIdentityValue(name, value) {
+    touchIdentityField(name, value);
+    syncIdentityWithCache();
+  }
+
+  // Build this context's identity record as { field: { value, t } }.
+  function buildLocalIdentityRecord() {
+    var ts = loadIdentityTimestamps();
+    var record = {};
+    Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+      var value = readLocalIdentityValue(IDENTITY_FIELDS[name]);
+      var t = ts[name] || 0;
+      // A value predating timestamp tracking gets a minimal non-zero stamp so
+      // it can populate the cache (beating blank) but loses to any real update.
+      if (value && !t) t = 1;
+      record[name] = { value: value, t: t };
+    });
+    return record;
+  }
+
+  function mergeIdentityField(a, b) {
+    a = a || { value: '', t: 0 };
+    b = b || { value: '', t: 0 };
+    var av = a.value || '', bv = b.value || '';
+    var at = a.t || 0, bt = b.t || 0;
+    // Blank never overwrites non-blank.
+    if (av && !bv) return { value: av, t: at };
+    if (bv && !av) return { value: bv, t: bt };
+    if (!av && !bv) return { value: '', t: Math.max(at, bt) };
+    // Both non-blank: newest timestamp wins (ties keep the local value).
+    return bt > at ? { value: bv, t: bt } : { value: av, t: at };
+  }
+
+  function mergeIdentityRecords(local, remote) {
+    var merged = {};
+    Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+      merged[name] = mergeIdentityField(local && local[name], remote && remote[name]);
+    });
+    return merged;
+  }
+
+  function applyIdentityRecordToLocal(record) {
+    var ts = loadIdentityTimestamps();
+    Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+      var field = record[name] || { value: '', t: 0 };
+      var key = IDENTITY_FIELDS[name];
+      try {
+        if (field.value) localStorage.setItem(key, field.value);
+        else localStorage.removeItem(key);
+      } catch (e) {}
+      ts[name] = field.t || 0;
+    });
+    saveIdentityTimestamps(ts);
+  }
+
+  function readCacheIdentity() {
+    if (!('caches' in window)) return Promise.resolve(null);
+    return caches.open(IDENTITY_CACHE_NAME).then(function (cache) {
+      return cache.match(IDENTITY_CACHE_KEY);
+    }).then(function (resp) {
+      return resp ? resp.json() : null;
+    }).catch(function () { return null; });
+  }
+
+  function writeCacheIdentity(record) {
+    if (!('caches' in window)) return Promise.resolve();
+    return caches.open(IDENTITY_CACHE_NAME).then(function (cache) {
+      return cache.put(IDENTITY_CACHE_KEY, new Response(JSON.stringify(record), {
+        headers: { 'Content-Type': 'application/json' }
+      }));
+    }).catch(function () {});
+  }
+
+  // Pull the shared record, merge with this context's values, then write the
+  // merged result back to both localStorage and the cache (two-way sync).
+  function syncIdentityWithCache() {
+    var local = buildLocalIdentityRecord();
+    return readCacheIdentity().then(function (remote) {
+      var merged = mergeIdentityRecords(local, remote);
+      applyIdentityRecordToLocal(merged);
+      return writeCacheIdentity(merged).then(function () { return merged; });
+    }).catch(function () { return null; });
+  }
+
+  // Authoritatively clear a field in the shared cache (used for explicit user
+  // deletion, which must override the "blank never overwrites non-blank" rule).
+  function deleteIdentityFieldInCache(name) {
+    if (!('caches' in window)) return;
+    readCacheIdentity().then(function (remote) {
+      remote = remote || {};
+      remote[name] = { value: '', t: Date.now() };
+      return writeCacheIdentity(remote);
+    }).catch(function () {});
+  }
+
   // --- User ID ---
   var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
 
@@ -2205,13 +2343,13 @@ button:disabled {
       if (stored) return stored;
       var legacy = localStorage.getItem('meditation-source');
       if (legacy) {
-        localStorage.setItem('meditation-user-id', legacy);
-        localStorage.removeItem('meditation-source');
+        setIdentityValue('userId', legacy);
+        try { localStorage.removeItem('meditation-source'); } catch (e) {}
         return legacy;
       }
     } catch (e) {}
     var generated = generateUserId();
-    try { localStorage.setItem('meditation-user-id', generated); } catch (e) {}
+    setIdentityValue('userId', generated);
     return generated;
   }
 
@@ -2224,8 +2362,8 @@ button:disabled {
         if (prev && prev !== query) {
           logGroupChanged(prev);
         }
-        localStorage.setItem('meditation-group-id', query);
       } catch (e) {}
+      setIdentityValue('groupId', query);
       return query;
     }
     try {
@@ -2233,12 +2371,20 @@ button:disabled {
     } catch (e) { return ''; }
   }
 
-  var appUserId = initUserId();
-  var appGroupId = initGroupId();
+  var appUserId = '';
+  var appGroupId = '';
 
-  // Log the first launch as an installed PWA (covers iOS, which never fires
-  // the appinstalled event).
-  logInstalledOnFirstLaunch();
+  // Hydrate identity from the shared cross-context cache before finalizing it,
+  // so an iOS standalone first-launch inherits the user id / group id / email
+  // captured in Safari (localStorage is not shared across that boundary, but
+  // CacheStorage is). Always resolves; falls back to local-only on any failure.
+  var identityReady = syncIdentityWithCache().catch(function () {}).then(function () {
+    appUserId = initUserId();
+    appGroupId = initGroupId();
+    // Log the first launch as an installed PWA (covers iOS, which never fires
+    // the appinstalled event).
+    logInstalledOnFirstLaunch();
+  });
 
   // --- Init ---
   var PRECACHE_ASSETS = [
@@ -2257,7 +2403,9 @@ button:disabled {
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('start-screen').classList.add('active');
     onStartScreenActivated();
-    maybePromptForEmail();
+    // Wait until identity hydration has settled so we don't re-prompt for an
+    // email that was inherited from the other context.
+    identityReady.then(maybePromptForEmail);
   });
 
   loadSettings();
