@@ -69,6 +69,18 @@ Four event types are logged:
 
 Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. Session events add the per-session duration/completion fields on top.
 
+### Cross-context identity sync
+
+On iOS, a web app installed to the home screen runs in a standalone context whose `localStorage` is **not** shared with Safari. Without mitigation, the installed app loses the `userId`, `groupId`, and `email` captured during the Safari visit — producing missing group-ids in the log, a second email prompt, and an inflated user count from a freshly generated `userId`.
+
+`CacheStorage`, however, **is** shared across that boundary. The app mirrors its identity fields (`userId`, `groupId`, `email`, and the `email-prompted` flag) through a shared cache record (cache `meditation-identity`, key `__identity__`):
+
+- **Two-way, last-write-wins per field.** Each datum carries a timestamp; on a change or at startup the local values and the cached record are merged field-by-field and the result is written back to both.
+- **A blank value never overwrites a non-blank one.** This protects values one context hasn't seen yet, but means an *explicit* email deletion is handled specially: the delete writes a blank directly into the shared cache so it isn't re-hydrated.
+- **Best-effort.** If `CacheStorage` is unavailable or empty, the app falls back to today's local-only behavior. The service worker preserves the `meditation-identity` cache during cleanup.
+
+At startup the cache is hydrated **before** identity is finalized and before any logging, so an installed first-launch reuses the inherited identity instead of generating a new one.
+
 ### Offline queue
 
 POSTs are queued in localStorage (`meditation-post-queue`) and retried automatically:
