@@ -61,9 +61,10 @@ This shows the most recently completed meditaion stats with text "Log this sessi
 
 When a session is logged, the app POSTs session data to a Google Apps Script endpoint that appends a row to a Google Sheet. The endpoint URL is hardcoded as `SHEET_URL`. Setting it to an empty string disables logging.
 
-Three event types are logged:
+Four event types are logged:
 - **session** — when the user logs a meditation session
-- **install** — when the user installs the PWA (via the browser `appinstalled` event)
+- **install** — when the user installs the PWA (via the browser `appinstalled` event, which iOS Safari never fires)
+- **installed** — the first time the app is launched as an installed PWA (detected via `navigator.standalone` / `display-mode: standalone`); fires once per install and covers iOS, where `install` is unavailable
 - **changed** — when a URL query string replaces the stored group-id (logs the old group-id)
 
 Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. Session events add the per-session duration/completion fields on top.
