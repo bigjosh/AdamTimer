@@ -252,6 +252,17 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(request.url);
   if (url.origin !== location.origin) return;
 
+  // Diagnostic test page: always serve from the network and never from the app
+  // shell cache, so it loads as itself (not the timer) and can be iterated on.
+  if (url.pathname.indexOf('pwatest.html') !== -1) {
+    event.respondWith(
+      fetch(request).catch(function () {
+        return new Response('pwatest: offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      })
+    );
+    return;
+  }
+
   event.respondWith((async function () {
     var meta = await readMeta();
     var cache = await caches.open(meta.activeCache);
