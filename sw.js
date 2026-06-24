@@ -252,10 +252,11 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(request.url);
   if (url.origin !== location.origin) return;
 
-  // Diagnostic test pages: always serve from the network and never from the app
-  // shell cache, so they load as themselves (not the timer) and can be iterated.
-  if (url.pathname.indexOf('pwatest.html') !== -1 ||
-      url.pathname.indexOf('cooktest.html') !== -1) {
+  // Diagnostic test pages (and their assets): always serve from the network and
+  // never from the app shell cache, so they load as themselves (not the timer),
+  // stay installable as separate apps, and can be iterated on.
+  if (url.pathname.indexOf('pwatest') !== -1 ||
+      url.pathname.indexOf('cooktest') !== -1) {
     event.respondWith(
       fetch(request).catch(function () {
         return new Response('test page: offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });

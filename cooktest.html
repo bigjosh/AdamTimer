@@ -11,6 +11,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- Its own manifest with a distinct id so Android installs it as a separate
+     app from the timer (whose identity defaults to its own start_url). -->
+<link rel="manifest" href="cooktest.webmanifest">
 
 <style>
   :root { color-scheme: dark; }
@@ -165,26 +168,8 @@
     }
   }
 
-  // Inject a manifest so "Add to Home Screen" launches THIS page as a
-  // standalone app (start_url points back to cooktest.html).
-  (function injectManifest() {
-    try {
-      var base = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
-      var m = {
-        name: 'Cookie Test', short_name: 'CookTest',
-        start_url: base + 'cooktest.html', display: 'standalone',
-        background_color: '#0d1117', theme_color: '#0d1117',
-        icons: [
-          { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png' }
-        ]
-      };
-      var url = URL.createObjectURL(new Blob([JSON.stringify(m)], { type: 'application/manifest+json' }));
-      var link = document.createElement('link');
-      link.rel = 'manifest'; link.href = url;
-      document.head.appendChild(link);
-    } catch (e) {}
-  })();
+  // The manifest is a static file (cooktest.webmanifest) linked in <head>, with
+  // its own id so Android installs it as an app separate from the timer.
 
   document.getElementById('resend').addEventListener('click', function () {
     if (lastAction) logEvent(lastAction, lastValue, lastExtra);
