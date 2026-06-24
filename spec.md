@@ -69,17 +69,18 @@ Four event types are logged:
 
 Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. Session events add the per-session duration/completion fields on top.
 
-### Cross-context identity sync
+### Cross-context identity handoff
 
-On iOS, a web app installed to the home screen runs in a standalone context whose `localStorage` is **not** shared with Safari. Without mitigation, the installed app loses the `userId`, `groupId`, and `email` captured during the Safari visit — producing missing group-ids in the log, a second email prompt, and an inflated user count from a freshly generated `userId`.
+On iOS, a web app installed to the home screen runs in a standalone context that is **fully isolated** from Safari: since iOS 17.4, neither `localStorage`, `IndexedDB`, cookies, **nor `CacheStorage`** are shared across that boundary. Without mitigation the installed app loses the `userId`, `groupId`, and `email` captured during the Safari visit — producing missing group-ids in the log (#30), a second email prompt (#31), and an inflated user count from a freshly generated `userId`.
 
-`CacheStorage`, however, **is** shared across that boundary. The app mirrors its identity fields (`userId`, `groupId`, `email`, and the `email-prompted` flag) through a shared cache record (cache `meditation-identity`, key `__identity__`):
+The one channel that *does* cross the boundary is the **launch URL**. The app builds its install manifest at runtime (a Blob-URL manifest, replacing the static `<link rel="manifest">`) whose `start_url` carries the current identity as an encoded token: `index.html?i=<base64url(JSON)>` covering `userId`, `groupId`, `email`, and the `email-prompted` flag. When "Add to Home Screen" captures that `start_url`, the installed app launches with the token, reads it back in (`ingestIdentityFromUrl`), and strips it from the address bar.
 
-- **Two-way, last-write-wins per field.** Each datum carries a timestamp; on a change or at startup the local values and the cached record are merged field-by-field and the result is written back to both.
-- **A blank value never overwrites a non-blank one.** This protects values one context hasn't seen yet, but means an *explicit* email deletion is handled specially: the delete writes a blank directly into the shared cache so it isn't re-hydrated.
-- **Best-effort.** If `CacheStorage` is unavailable or empty, the app falls back to today's local-only behavior. The service worker preserves the `meditation-identity` cache during cleanup.
+- **Filled, never clobbered.** The handoff only sets fields the launching context doesn't already have, so it never overwrites a locally-set value.
+- **Manifest stays current.** It is rebuilt whenever identity changes (group captured, email entered/cleared), so a later install reflects the latest values. Blob-URL manifests have no base URL, so `start_url` and icon paths inside it are absolute.
+- **Ordering.** The URL handoff is ingested **before** identity is finalized and before any logging, so an installed first-launch reuses the inherited identity instead of generating a new one.
+- **Best-effort + diagnostics.** Falls back to local-only behavior if anything is unsupported. The `installed` log event includes the raw `launchUrl` it started from, so we can confirm whether the handoff survived.
 
-At startup the cache is hydrated **before** identity is finalized and before any logging, so an installed first-launch reuses the inherited identity instead of generating a new one.
+A secondary `CacheStorage` mirror (cache `meditation-identity`, two-way last-write-wins per field, blank never overwrites non-blank) is also maintained; it is a no-op on isolated iOS but helps on platforms that don't isolate the cache.
 
 ### Offline queue
 

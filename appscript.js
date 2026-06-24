@@ -17,7 +17,8 @@ var HEADERS = [
   'Lead Out Completed',
   'Meditation Logged',
   'Email Address',
-  'Group ID'
+  'Group ID',
+  'Launch URL'
 ];
 
 // Set this to a specific sheet tab name to avoid ambiguity.
@@ -76,7 +77,8 @@ function doPost(e) {
       data.leadOutCompleted || 0,
       data.meditationLogged || 0,
       data.email || '',
-      data.groupId || ''
+      data.groupId || '',
+      data.launchUrl || ''
     ];
 
     sheet.appendRow(row);
