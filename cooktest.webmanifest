@@ -1,0 +1,15 @@
+{
+  "id": "/AdamTimer/cooktest-app",
+  "name": "Cookie Test",
+  "short_name": "CookTest",
+  "start_url": "./cooktest.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
