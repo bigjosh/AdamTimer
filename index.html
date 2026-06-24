@@ -1096,6 +1096,7 @@ button:disabled {
     touchIdentityField('email', email);
     touchIdentityField('emailPrompted', '1');
     syncIdentityWithCache();
+    refreshInstallManifest();
   }
 
   function clearEmailAddress() {
@@ -1106,6 +1107,7 @@ button:disabled {
     // keeps a blank from overwriting a non-blank value; an explicit delete
     // overrides that for this field.)
     deleteIdentityFieldInCache('email');
+    refreshInstallManifest();
   }
 
   function setEmailDialogMessage(message) {
@@ -1295,7 +1297,11 @@ button:disabled {
       if (localStorage.getItem('meditation-installed') === '1') return;
       localStorage.setItem('meditation-installed', '1');
     } catch (e) { /* if storage is unavailable, fall through and log once */ }
-    enqueueAndFlush(createLogPayload('installed'));
+    var payload = createLogPayload('installed');
+    // Diagnostic: the URL this install actually launched from, so we can see
+    // whether the identity handoff (?i=...) survived "Add to Home Screen".
+    payload.launchUrl = INITIAL_LAUNCH_URL;
+    enqueueAndFlush(payload);
   }
 
   function logGroupChanged(oldGroupId) {
@@ -2232,10 +2238,11 @@ button:disabled {
     saveIdentityTimestamps(ts);
   }
 
-  // Update a field locally and push the change to the shared cache.
+  // Update a field locally and push the change to the shared cache + install URL.
   function setIdentityValue(name, value) {
     touchIdentityField(name, value);
     syncIdentityWithCache();
+    refreshInstallManifest();
   }
 
   // Build this context's identity record as { field: { value, t } }.
@@ -2328,6 +2335,92 @@ button:disabled {
     }).catch(function () {});
   }
 
+  // --- Identity handoff via the install URL (the only channel that crosses the
+  // iOS Safari <-> installed-app boundary, since modern iOS fully isolates
+  // localStorage AND CacheStorage between the two). We build the install
+  // manifest at runtime so its start_url carries the current identity; when the
+  // app is launched as an installed PWA, we read those values back in. ---
+  function encodeIdentityToken(obj) {
+    try {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } catch (e) { return ''; }
+  }
+
+  function decodeIdentityToken(str) {
+    try {
+      var b64 = String(str).replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    } catch (e) { return null; }
+  }
+
+  // Absolute directory URL of this page (Blob-URL manifests have no base URL,
+  // so start_url and icon paths inside them must be absolute).
+  function appBaseUrl() {
+    return location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
+  }
+
+  function buildInstallManifest() {
+    var base = appBaseUrl();
+    var data = {};
+    Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+      var v = readLocalIdentityValue(IDENTITY_FIELDS[name]);
+      if (v) data[name] = v;
+    });
+    var token = encodeIdentityToken(data);
+    return {
+      name: 'Meditation Timer',
+      short_name: 'Meditate',
+      start_url: base + 'index.html' + (token ? '?i=' + token : ''),
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#000000',
+      theme_color: '#000000',
+      icons: [
+        { src: base + 'icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: base + 'icon-512.png', sizes: '512x512', type: 'image/png' }
+      ]
+    };
+  }
+
+  // Regenerate the runtime manifest so a future "Add to Home Screen" captures
+  // the latest identity in its start_url. Safe no-op if anything is unsupported.
+  var installManifestUrl = null;
+  function refreshInstallManifest() {
+    try {
+      var link = document.querySelector('link[rel="manifest"]');
+      if (!link || typeof URL.createObjectURL !== 'function') return;
+      var blob = new Blob([JSON.stringify(buildInstallManifest())],
+        { type: 'application/manifest+json' });
+      var url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      if (installManifestUrl) { try { URL.revokeObjectURL(installManifestUrl); } catch (e) {} }
+      installManifestUrl = url;
+    } catch (e) {}
+  }
+
+  // On launch, adopt any identity passed in via the install URL (?i=...), then
+  // strip it from the address bar. Only fills fields this context doesn't
+  // already have, so it never clobbers locally-set values.
+  function ingestIdentityFromUrl() {
+    try {
+      var params = new URLSearchParams(location.search);
+      if (!params.has('i')) return;
+      var data = decodeIdentityToken(params.get('i'));
+      if (data) {
+        Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+          if (data[name] && !readLocalIdentityValue(IDENTITY_FIELDS[name])) {
+            touchIdentityField(name, data[name]);
+          }
+        });
+      }
+      params.delete('i');
+      var qs = params.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+    } catch (e) {}
+  }
+
   // --- User ID ---
   var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
 
@@ -2374,13 +2467,21 @@ button:disabled {
   var appUserId = '';
   var appGroupId = '';
 
-  // Hydrate identity from the shared cross-context cache before finalizing it,
-  // so an iOS standalone first-launch inherits the user id / group id / email
-  // captured in Safari (localStorage is not shared across that boundary, but
-  // CacheStorage is). Always resolves; falls back to local-only on any failure.
+  // The URL this launch started from, captured before ingestIdentityFromUrl()
+  // strips the handoff param (logged with the install event for diagnostics).
+  var INITIAL_LAUNCH_URL = location.href;
+
+  // First, adopt any identity handed off through the install URL (the only
+  // channel that crosses the iOS Safari <-> installed-app boundary). Then merge
+  // with the shared cache (helps on platforms where it isn't isolated), finalize
+  // identity, refresh the install manifest, and log the first launch.
+  ingestIdentityFromUrl();
   var identityReady = syncIdentityWithCache().catch(function () {}).then(function () {
     appUserId = initUserId();
     appGroupId = initGroupId();
+    // Build the runtime manifest so a future "Add to Home Screen" carries the
+    // current identity in its start_url.
+    refreshInstallManifest();
     // Log the first launch as an installed PWA (covers iOS, which never fires
     // the appinstalled event).
     logInstalledOnFirstLaunch();

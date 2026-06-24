@@ -22,6 +22,7 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | N | Meditation Logged (seconds the user chose to log, may include additional time) |
 | O | Email Address (optional, provided by the user) |
 | P | Group ID (optional, supplied via URL query string and sticky across loads) |
+| Q | Launch URL (diagnostic; the URL an `installed` event launched from) |
 
 ## Action Types
 
