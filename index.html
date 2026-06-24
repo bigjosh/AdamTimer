@@ -1096,7 +1096,7 @@ button:disabled {
     touchIdentityField('email', email);
     touchIdentityField('emailPrompted', '1');
     syncIdentityWithCache();
-    refreshInstallManifest();
+    publishIdentity();
   }
 
   function clearEmailAddress() {
@@ -1107,7 +1107,7 @@ button:disabled {
     // keeps a blank from overwriting a non-blank value; an explicit delete
     // overrides that for this field.)
     deleteIdentityFieldInCache('email');
-    refreshInstallManifest();
+    publishIdentity();
   }
 
   function setEmailDialogMessage(message) {
@@ -1298,9 +1298,13 @@ button:disabled {
       localStorage.setItem('meditation-installed', '1');
     } catch (e) { /* if storage is unavailable, fall through and log once */ }
     var payload = createLogPayload('installed');
-    // Diagnostic: the URL this install actually launched from, so we can see
-    // whether the identity handoff (?i=...) survived "Add to Home Screen".
-    payload.launchUrl = INITIAL_LAUNCH_URL;
+    // Diagnostic: the URL this install launched from, plus which cross-boundary
+    // channels delivered data -- so we can see what actually survives "Add to
+    // Home Screen" on this device (e.g. "...  [url:1 cookie:0 cache:0]").
+    payload.launchUrl = INITIAL_LAUNCH_URL +
+      '  [url:' + (IDENTITY_DIAG.url ? 1 : 0) +
+      ' cookie:' + (IDENTITY_DIAG.cookie ? 1 : 0) +
+      ' cache:' + (IDENTITY_DIAG.cache ? 1 : 0) + ']';
     enqueueAndFlush(payload);
   }
 
@@ -2238,11 +2242,11 @@ button:disabled {
     saveIdentityTimestamps(ts);
   }
 
-  // Update a field locally and push the change to the shared cache + install URL.
+  // Update a field locally and push the change to every outbound channel.
   function setIdentityValue(name, value) {
     touchIdentityField(name, value);
     syncIdentityWithCache();
-    refreshInstallManifest();
+    publishIdentity();
   }
 
   // Build this context's identity record as { field: { value, t } }.
@@ -2421,6 +2425,49 @@ button:disabled {
     } catch (e) {}
   }
 
+  // Cookie channel: iOS *may* seed an installed app's cookie jar with a
+  // one-time copy of Safari's persistent cookies at install time (unlike
+  // localStorage/CacheStorage, which start empty). Must be a persistent cookie
+  // (max-age) -- session cookies are not copied.
+  var IDENTITY_COOKIE = 'mid';
+
+  function writeIdentityCookie() {
+    try {
+      var data = {};
+      Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+        var v = readLocalIdentityValue(IDENTITY_FIELDS[name]);
+        if (v) data[name] = v;
+      });
+      var token = encodeIdentityToken(data);
+      if (!token) return;
+      document.cookie = IDENTITY_COOKIE + '=' + token + '; path=/; max-age=31536000; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  function readIdentityCookie() {
+    try {
+      var m = (document.cookie || '').match(new RegExp('(?:^|;\\s*)' + IDENTITY_COOKIE + '=([^;]+)'));
+      return m ? decodeIdentityToken(m[1]) : null;
+    } catch (e) { return null; }
+  }
+
+  function ingestIdentityFromCookie() {
+    var data = readIdentityCookie();
+    if (!data) return;
+    Object.keys(IDENTITY_FIELDS).forEach(function (name) {
+      if (data[name] && !readLocalIdentityValue(IDENTITY_FIELDS[name])) {
+        touchIdentityField(name, data[name]);
+      }
+    });
+  }
+
+  // Publish the current identity to every outbound channel (install-URL
+  // manifest + cookie) so a future "Add to Home Screen" can carry it across.
+  function publishIdentity() {
+    refreshInstallManifest();
+    writeIdentityCookie();
+  }
+
   // --- User ID ---
   var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
 
@@ -2471,17 +2518,29 @@ button:disabled {
   // strips the handoff param (logged with the install event for diagnostics).
   var INITIAL_LAUNCH_URL = location.href;
 
-  // First, adopt any identity handed off through the install URL (the only
-  // channel that crosses the iOS Safari <-> installed-app boundary). Then merge
-  // with the shared cache (helps on platforms where it isn't isolated), finalize
-  // identity, refresh the install manifest, and log the first launch.
+  // Which cross-boundary channels actually delivered data on this launch -- so
+  // the install event tells us empirically what works on the device's iOS.
+  var IDENTITY_DIAG = {
+    url: /[?&]i=/.test(location.search),
+    cookie: new RegExp('(?:^|;\\s*)mid=').test(document.cookie || ''),
+    cache: false
+  };
+
+  // Adopt identity handed off through the channels that can cross the iOS
+  // Safari <-> installed-app boundary: the install URL and (maybe) a copied
+  // cookie. Then merge with the shared cache (a no-op on isolated iOS but
+  // helps elsewhere), finalize identity, publish it for the next install, and
+  // log the first launch.
   ingestIdentityFromUrl();
-  var identityReady = syncIdentityWithCache().catch(function () {}).then(function () {
+  ingestIdentityFromCookie();
+  var identityReady = readCacheIdentity().then(function (remote) {
+    IDENTITY_DIAG.cache = !!remote;
+  }).then(function () {
+    return syncIdentityWithCache();
+  }).catch(function () {}).then(function () {
     appUserId = initUserId();
     appGroupId = initGroupId();
-    // Build the runtime manifest so a future "Add to Home Screen" carries the
-    // current identity in its start_url.
-    refreshInstallManifest();
+    publishIdentity();
     // Log the first launch as an installed PWA (covers iOS, which never fires
     // the appinstalled event).
     logInstalledOnFirstLaunch();

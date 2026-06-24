@@ -73,12 +73,15 @@ Every logged event carries a common set of fields: `action`, `date`, `v` (log pa
 
 On iOS, a web app installed to the home screen runs in a standalone context that is **fully isolated** from Safari: since iOS 17.4, neither `localStorage`, `IndexedDB`, cookies, **nor `CacheStorage`** are shared across that boundary. Without mitigation the installed app loses the `userId`, `groupId`, and `email` captured during the Safari visit — producing missing group-ids in the log (#30), a second email prompt (#31), and an inflated user count from a freshly generated `userId`.
 
-The one channel that *does* cross the boundary is the **launch URL**. The app builds its install manifest at runtime (a Blob-URL manifest, replacing the static `<link rel="manifest">`) whose `start_url` carries the current identity as an encoded token: `index.html?i=<base64url(JSON)>` covering `userId`, `groupId`, `email`, and the `email-prompted` flag. When "Add to Home Screen" captures that `start_url`, the installed app launches with the token, reads it back in (`ingestIdentityFromUrl`), and strips it from the address bar.
+Identity is therefore handed off through the channels that *can* cross the boundary, and the app reads from all of them on launch (filling only fields it doesn't already have):
+
+- **Launch URL (primary).** The install manifest is built at runtime (a Blob-URL manifest, replacing the static `<link rel="manifest">`) whose `start_url` carries the current identity as an encoded token: `index.html?i=<base64url(JSON)>` covering `userId`, `groupId`, `email`, and the `email-prompted` flag. When "Add to Home Screen" captures that `start_url`, the installed app launches with the token, reads it back in (`ingestIdentityFromUrl`), and strips it from the address bar.
+- **Cookie.** The same token is written to a persistent first-party cookie (`mid`). iOS *may* seed an installed app's cookie jar with a one-time copy of Safari's persistent cookies at install time; if so, `ingestIdentityFromCookie` recovers it. (Session cookies are not copied, so the cookie must be persistent.)
 
 - **Filled, never clobbered.** The handoff only sets fields the launching context doesn't already have, so it never overwrites a locally-set value.
 - **Manifest stays current.** It is rebuilt whenever identity changes (group captured, email entered/cleared), so a later install reflects the latest values. Blob-URL manifests have no base URL, so `start_url` and icon paths inside it are absolute.
 - **Ordering.** The URL handoff is ingested **before** identity is finalized and before any logging, so an installed first-launch reuses the inherited identity instead of generating a new one.
-- **Best-effort + diagnostics.** Falls back to local-only behavior if anything is unsupported. The `installed` log event includes the raw `launchUrl` it started from, so we can confirm whether the handoff survived.
+- **Best-effort + diagnostics.** Falls back to local-only behavior if anything is unsupported. The `installed` log event records the raw launch URL plus which channels delivered data (e.g. `[url:1 cookie:0 cache:0]`), so we can see empirically what survives "Add to Home Screen" on a given iOS version.
 
 A secondary `CacheStorage` mirror (cache `meditation-identity`, two-way last-write-wins per field, blank never overwrites non-blank) is also maintained; it is a no-op on isolated iOS but helps on platforms that don't isolate the cache.
 
