@@ -130,11 +130,27 @@ function listGroups() {
 }
 
 // --- root index (list of groups) ----------------------------------------
+// The catch-all "Public" group is always pinned to the top of the list,
+// separated from the rest by a horizontal rule.
+const PINNED_KEY = 'public';
+function groupLi(g) {
+  return '      <li><a href="g/' + encodeURIComponent(g.id) + '/">' + htmlEscape(g.name) + '</a></li>';
+}
 function buildIndex() {
   const groups = listGroups();
-  const rows = groups.length
-    ? groups.map(g => '      <li><a href="g/' + encodeURIComponent(g.id) + '/">' + htmlEscape(g.name) + '</a></li>').join('\n')
-    : '      <li class="empty">No groups yet.</li>';
+  const pinned = groups.filter(g => hashKey(g.name) === PINNED_KEY);
+  const rest = groups.filter(g => hashKey(g.name) !== PINNED_KEY);
+  let rows;
+  if (!groups.length) {
+    rows = '      <li class="empty">No groups yet.</li>';
+  } else if (pinned.length && rest.length) {
+    // Close the list, drop an <hr>, reopen the list for the remaining groups.
+    rows = pinned.map(groupLi).join('\n') +
+      '\n    </ul>\n    <hr class="sep">\n    <ul class="groups">\n' +
+      rest.map(groupLi).join('\n');
+  } else {
+    rows = groups.map(groupLi).join('\n');
+  }
   fs.writeFileSync(path.join(ROOT, 'index.html'), render('index-list.template.html', { ROWS: rows }));
   fs.writeFileSync(path.join(ROOT, 'sw.js'), ROOT_SW);
   // The root is no longer an installable PWA.
