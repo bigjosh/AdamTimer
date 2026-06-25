@@ -1,0 +1,115 @@
+name: groups
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  push:
+    branches: [main]
+    paths:
+      - 'templates/**'
+      - 'app.js'
+      - 'app.css'
+      - 'tools/generate.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+# Serialize every job that commits to main so concurrent runs don't race.
+concurrency:
+  group: groups-main
+  cancel-in-progress: false
+
+jobs:
+  new-group:
+    # Only act on issues titled exactly "New group".
+    if: ${{ github.event_name == 'issues' && github.event.issue.title == 'New group' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate bundle from issue
+        id: gen
+        env:
+          # Untrusted issue body -> passed via env (never interpolated into the
+          # shell) and consumed as a quoted argv. generate.js escapes it for HTML/JSON.
+          GROUP_NAME: ${{ github.event.issue.body }}
+        run: |
+          node tools/generate.js add-group "$GROUP_NAME" > result.json
+          cat result.json
+          {
+            echo "status=$(node -p "require('./result.json').status || ''")"
+            echo "id=$(node -p "require('./result.json').id || ''")"
+            echo "gname=$(node -p "require('./result.json').name || ''")"
+            echo "collides=$(node -p "require('./result.json').collidesWith || ''")"
+          } >> "$GITHUB_OUTPUT"
+          rm -f result.json
+
+      - name: Generate QR and commit (created)
+        if: ${{ steps.gen.outputs.status == 'CREATED' }}
+        env:
+          ID: ${{ steps.gen.outputs.id }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y qrencode
+          URL="https://bigjosh.github.io/AdamTimer/g/$ID/"
+          qrencode -o "g/$ID/qr.png" -s 8 -m 2 "$URL"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "Add group bundle $ID"
+          git push || (git pull --rebase origin main && git push)
+
+      - name: Comment and close issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          STATUS: ${{ steps.gen.outputs.status }}
+          ID: ${{ steps.gen.outputs.id }}
+          GNAME: ${{ steps.gen.outputs.gname }}
+          COLLIDES: ${{ steps.gen.outputs.collides }}
+          REPO: ${{ github.repository }}
+        run: |
+          URL="https://bigjosh.github.io/AdamTimer/g/$ID/"
+          QR="https://raw.githubusercontent.com/$REPO/main/g/$ID/qr.png"
+          case "$STATUS" in
+            CREATED)
+              body=$(printf 'Created group **%s** (`%s`).\n\n**URL:** %s\n\n![QR code](%s)\n\n(GitHub Pages may take a minute to publish.)' "$GNAME" "$ID" "$URL" "$QR")
+              gh issue comment "$ISSUE" --body "$body"
+              gh issue close "$ISSUE"
+              ;;
+            EXISTS)
+              body=$(printf 'Group **%s** already exists (`%s`).\n\n**URL:** %s' "$GNAME" "$ID" "$URL")
+              gh issue comment "$ISSUE" --body "$body"
+              gh issue close "$ISSUE"
+              ;;
+            COLLISION)
+              body=$(printf 'This name hashes to `%s`, which already belongs to a different group (**%s**). Please edit this issue description with a slightly different name.' "$ID" "$COLLIDES")
+              gh issue comment "$ISSUE" --body "$body"
+              ;;
+            EMPTY)
+              gh issue comment "$ISSUE" --body "The issue description was empty. Please put the group name in the description, then edit or reopen this issue."
+              ;;
+            *)
+              echo "Unexpected status: $STATUS"
+              ;;
+          esac
+
+  rebuild:
+    # Regenerate the root + every group bundle when shared sources change.
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/generate.js rebuild-all
+      - name: Commit regenerated bundles
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+          else
+            git commit -m "Regenerate bundles from templates"
+            git push || (git pull --rebase origin main && git push)
+          fi
