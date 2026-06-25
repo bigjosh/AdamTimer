@@ -548,6 +548,12 @@
 
   function renderStatsSummary(stats) {
     var html = '';
+    if (appGroupId) {
+      var gname = (window.APP && window.APP.group && window.APP.group.name) || '';
+      var gesc = gname.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; });
+      var gval = gesc ? gesc + ' (' + appGroupId + ')' : appGroupId;
+      html += '<div class="stat-row"><span class="stat-label">Group</span><span class="stat-value">' + gval + '</span></div>';
+    }
     html += '<div class="stat-row"><span class="stat-label">Total Sessions</span><span class="stat-value">' + stats.totalSessions + '</span></div>';
     html += '<div class="stat-row"><span class="stat-label">Total Meditation</span><span class="stat-value">' + formatDuration(stats.totalMeditationSec) + '</span></div>';
     html += '<div class="stat-row"><span class="stat-label">Last 14 Days</span><span class="stat-value">' + formatDuration(stats.recentMeditationSec) + '</span></div>';
