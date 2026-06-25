@@ -61,29 +61,21 @@ This shows the most recently completed meditaion stats with text "Log this sessi
 
 When a session is logged, the app POSTs session data to a Google Apps Script endpoint that appends a row to a Google Sheet. The endpoint URL is hardcoded as `SHEET_URL`. Setting it to an empty string disables logging.
 
-Four event types are logged:
+Three event types are logged:
 - **session** — when the user logs a meditation session
 - **install** — when the user installs the PWA (via the browser `appinstalled` event, which iOS Safari never fires)
 - **installed** — the first time the app is launched as an installed PWA (detected via `navigator.standalone` / `display-mode: standalone`); fires once per install and covers iOS, where `install` is unavailable
-- **changed** — when a URL query string replaces the stored group-id (logs the old group-id)
 
-Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. Session events add the per-session duration/completion fields on top.
+Every logged event carries a common set of fields: `action`, `date`, `v` (log payload version), `userId`, plus `groupId` and `email` when set. The `groupId` is the group's hash, baked into the page (see Per-group bundles). Session events add the per-session duration/completion fields on top.
 
-### Cross-context identity handoff
+### Per-group bundles
 
-On iOS, a web app installed to the home screen runs in a standalone context that is **fully isolated** from Safari: since iOS 17.4, neither `localStorage`, `IndexedDB`, cookies, **nor `CacheStorage`** are shared across that boundary. Without mitigation the installed app loses the `userId`, `groupId`, and `email` captured during the Safari visit — producing missing group-ids in the log (#30), a second email prompt (#31), and an inflated user count from a freshly generated `userId`.
+To attribute usage to a group on every platform (including iOS, whose installed home-screen apps are fully storage-isolated from Safari since iOS 17.4), each group gets its **own static bundle** under `/g/<ID>/` rather than passing the group through a URL/storage channel. The group identity is therefore intrinsic to *which app you installed*.
 
-Identity is therefore handed off through the channels that *can* cross the boundary, and the app reads from all of them on launch (filling only fields it doesn't already have):
-
-- **Launch URL (primary).** The install manifest is built at runtime (a Blob-URL manifest, replacing the static `<link rel="manifest">`) whose `start_url` carries the current identity as an encoded token: `index.html?i=<base64url(JSON)>` covering `userId`, `groupId`, `email`, and the `email-prompted` flag. When "Add to Home Screen" captures that `start_url`, the installed app launches with the token, reads it back in (`ingestIdentityFromUrl`), and strips it from the address bar.
-- **Cookie.** The same token is written to a persistent first-party cookie (`mid`). iOS *may* seed an installed app's cookie jar with a one-time copy of Safari's persistent cookies at install time; if so, `ingestIdentityFromCookie` recovers it. (Session cookies are not copied, so the cookie must be persistent.)
-
-- **Filled, never clobbered.** The handoff only sets fields the launching context doesn't already have, so it never overwrites a locally-set value.
-- **Manifest stays current.** It is rebuilt whenever identity changes (group captured, email entered/cleared), so a later install reflects the latest values. Blob-URL manifests have no base URL, so `start_url` and icon paths inside it are absolute.
-- **Ordering.** The URL handoff is ingested **before** identity is finalized and before any logging, so an installed first-launch reuses the inherited identity instead of generating a new one.
-- **Best-effort + diagnostics.** Falls back to local-only behavior if anything is unsupported. The `installed` log event records the raw launch URL plus which channels delivered data (e.g. `[url:1 cookie:0 cache:0]`), so we can see empirically what survives "Add to Home Screen" on a given iOS version.
-
-A secondary `CacheStorage` mirror (cache `meditation-identity`, two-way last-write-wins per field, blank never overwrites non-blank) is also maintained; it is a no-op on isolated iOS but helps on platforms that don't isolate the cache.
+- **ID.** `<ID>` is a 5-char Crockford-base32 hash of the normalized (trimmed, whitespace-collapsed, case-folded) group name. The algorithm is frozen — never change it once groups exist.
+- **Bundle.** `g/<ID>/` holds `index.html`, `manifest.json`, `sw.js` (each `start_url`/`scope`/`id` scoped to the folder so it installs as a distinct app), plus `group.json` (the implicit registry the generator reads back) and `qr.png`.
+- **Thin shell.** Every page — root and group — is generated from `templates/` and shares `app.js` / `app.css` / assets at the site root, referenced relatively (`../../` from a group bundle) so it survives a custom domain. The page bakes `window.APP = { base, group:{id,name} }`; `app.js` reads the group id from there.
+- **Generation.** `tools/generate.js` (`build-root` / `add-group` / `rebuild-all`) is driven by the `groups` GitHub Action: opening an issue titled "New group" with the name in the body creates the bundle, appends `groups.md`, commits, and replies with the URL + QR. Pushes that touch the shared sources regenerate all bundles (a build-hash in each `index.html` triggers the SW update flow).
 
 ### Offline queue
 

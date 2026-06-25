@@ -6,13 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#000000">
-<!-- build 66b502b919b7 -->
-<title>Meditation Timer</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<!-- build {{BUILD}} -->
+<title>{{TITLE}}</title>
+<link rel="icon" type="image/svg+xml" href="{{BASE}}favicon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="{{BASE}}icon-192.png">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css">
+<link rel="apple-touch-icon" href="{{BASE}}icon-192.png">
+<link rel="stylesheet" href="{{BASE}}app.css">
 </head>
 <body>
 
@@ -186,8 +186,8 @@
   </div>
 </div>
 
-<script src="NoSleep.min.js"></script>
-<script>window.APP = { base: "", group: null };</script>
-<script src="app.js"></script>
+<script src="{{BASE}}NoSleep.min.js"></script>
+<script>window.APP = { base: "{{BASE}}", group: {{GROUP_JSON}} };</script>
+<script src="{{BASE}}app.js"></script>
 </body>
 </html>

@@ -7,20 +7,20 @@ const INDEX_PATH = new URL('index.html', self.registration.scope).pathname;
 const SCOPE_PATH = new URL(self.registration.scope).pathname;
 const STATIC_ASSET_URLS = [
   'manifest.json',
-  'app.js',
-  'app.css',
-  'sand.jpg',
-  'sea.jpg',
-  'icon-192.png',
-  'icon-512.png',
-  'favicon.svg',
-  'NoSleep.min.js',
-  'sounds/Gong 1.m4a',
-  'sounds/Gong 2.wav',
-  'sounds/Gong 3.wav',
-  'sounds/Gong 4.wav',
-  'sounds/Gong 5.wav',
-  'sounds/Wood Block.m4a'
+  '{{BASE}}app.js',
+  '{{BASE}}app.css',
+  '{{BASE}}sand.jpg',
+  '{{BASE}}sea.jpg',
+  '{{BASE}}icon-192.png',
+  '{{BASE}}icon-512.png',
+  '{{BASE}}favicon.svg',
+  '{{BASE}}NoSleep.min.js',
+  '{{BASE}}sounds/Gong 1.m4a',
+  '{{BASE}}sounds/Gong 2.wav',
+  '{{BASE}}sounds/Gong 3.wav',
+  '{{BASE}}sounds/Gong 4.wav',
+  '{{BASE}}sounds/Gong 5.wav',
+  '{{BASE}}sounds/Wood Block.m4a'
 ].map(function (path) {
   return new URL(path, self.registration.scope).toString();
 });
