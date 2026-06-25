@@ -2,13 +2,15 @@
 'use strict';
 // Bundle generator for AdamTimer group landing pages.
 //
-//   node tools/generate.js build-root           Regenerate the root (ungrouped) app.
+//   node tools/generate.js build-index          Regenerate the root index (group list).
 //   node tools/generate.js add-group "<name>"   Create a group bundle for <name> (JSON result on stdout).
-//   node tools/generate.js rebuild-all          Regenerate the root + every existing /g/<id> bundle.
+//   node tools/generate.js rebuild-all          Regenerate every /g/<id> bundle + the root index.
 //
 // Each group lives in /g/<ID>/ where ID is a 5-char Crockford-base32 hash of the
 // normalized (case/space-folded) name. The hash is frozen forever: never change
-// the algorithm once groups exist. groups.md is a human-readable hash->name list.
+// the algorithm once groups exist. The root index.html is a list of the existing
+// groups (links to their subdirs), regenerated from ground truth (g/<ID>/group.json)
+// every time a group is added.
 
 const fs = require('fs');
 const path = require('path');
@@ -17,8 +19,24 @@ const crypto = require('crypto');
 const ROOT = path.resolve(__dirname, '..');
 const TPL = path.join(ROOT, 'templates');
 const GROUPS_DIR = path.join(ROOT, 'g');
-const GROUPS_MD = path.join(ROOT, 'groups.md');
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32 (no I,L,O,U)
+
+// A no-fetch "kill switch" service worker that retires the former root timer SW
+// (so the root shows the list and group-page navigations are no longer hijacked
+// by the old root app-shell rule). It unregisters itself and reloads windows;
+// it never deletes caches, so installed group bundles keep their offline data.
+const ROOT_SW = [
+  '// Kill switch: retires the former root timer service worker.',
+  "self.addEventListener('install', function () { self.skipWaiting(); });",
+  "self.addEventListener('activate', function (event) {",
+  '  event.waitUntil((async function () {',
+  '    try { await self.registration.unregister(); } catch (e) {}',
+  "    var clients = await self.clients.matchAll({ type: 'window' });",
+  '    clients.forEach(function (c) { c.navigate(c.url); });',
+  '  })());',
+  '});',
+  ''
+].join('\n');
 
 // --- name handling -------------------------------------------------------
 function displayName(name) {
@@ -40,6 +58,9 @@ function hashId(name) {
     }
   }
   return out;
+}
+function htmlEscape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // --- templating ----------------------------------------------------------
@@ -64,53 +85,30 @@ function buildVersion() {
   return h.digest('hex').slice(0, 12);
 }
 
-function writeBundle(dir, opts) {
-  // opts: { base, title, name, shortName, id, group }  group is null for root.
+// --- group bundles -------------------------------------------------------
+function buildGroup(id, name) {
+  const disp = displayName(name);
+  const dir = path.join(GROUPS_DIR, id);
   fs.mkdirSync(dir, { recursive: true });
   const html = render('index.template.html', {
     BUILD: buildVersion(),
-    BASE: opts.base,
-    TITLE: htmlEscape(opts.title),
-    GROUP_JSON: jsForScript(opts.group)
+    BASE: '../../',
+    TITLE: htmlEscape('AdamTimer - ' + disp),
+    GROUP_JSON: jsForScript({ id: id, name: disp })
   });
   const manifest = render('manifest.template.json', {
-    BASE: opts.base,
-    ID: JSON.stringify(opts.id),
-    NAME: JSON.stringify(opts.name),
-    SHORT_NAME: JSON.stringify(opts.shortName)
+    BASE: '../../',
+    ID: JSON.stringify(id),
+    NAME: JSON.stringify('AdamTimer - ' + disp),
+    SHORT_NAME: JSON.stringify(disp)
   });
   JSON.parse(manifest); // sanity: must be valid JSON
-  const sw = render('sw.template.js', { BASE: opts.base });
   fs.writeFileSync(path.join(dir, 'index.html'), html);
   fs.writeFileSync(path.join(dir, 'manifest.json'), manifest);
-  fs.writeFileSync(path.join(dir, 'sw.js'), sw);
-  if (opts.group) {
-    // Per-bundle metadata: the implicit registry the generator reads back for
-    // collision checks and rebuilds (groups.md stays human-only).
-    fs.writeFileSync(path.join(dir, 'group.json'), JSON.stringify(opts.group, null, 2) + '\n');
-  }
-}
-function htmlEscape(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-// --- builds --------------------------------------------------------------
-function buildRoot() {
-  writeBundle(ROOT, {
-    base: '', id: 'AdamTimer',
-    title: 'Meditation Timer', name: 'Meditation Timer', shortName: 'Meditate',
-    group: null
-  });
-}
-function buildGroup(id, name) {
-  const disp = displayName(name);
-  writeBundle(path.join(GROUPS_DIR, id), {
-    base: '../../', id: id,
-    title: 'AdamTimer - ' + disp,
-    name: 'AdamTimer - ' + disp,
-    shortName: disp,
-    group: { id: id, name: disp }
-  });
+  fs.writeFileSync(path.join(dir, 'sw.js'), render('sw.template.js', { BASE: '../../' }));
+  // Per-bundle metadata: the implicit registry the generator reads back for
+  // collision checks, rebuilds, and the root list.
+  fs.writeFileSync(path.join(dir, 'group.json'), JSON.stringify({ id: id, name: disp }, null, 2) + '\n');
 }
 
 function existingGroup(id) {
@@ -119,15 +117,31 @@ function existingGroup(id) {
   try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; }
 }
 
-function appendGroupsMd(id, name) {
-  const line = id + '  ' + displayName(name) + '\n';
-  if (!fs.existsSync(GROUPS_MD)) {
-    fs.writeFileSync(GROUPS_MD, '# Groups\n\nGenerated bundles (hash -> name). Do not edit by hand.\n\n' + line);
-  } else {
-    fs.appendFileSync(GROUPS_MD, line);
+function listGroups() {
+  const groups = [];
+  if (fs.existsSync(GROUPS_DIR)) {
+    for (const id of fs.readdirSync(GROUPS_DIR)) {
+      const g = existingGroup(id);
+      if (g) groups.push(g);
+    }
   }
+  groups.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  return groups;
 }
 
+// --- root index (list of groups) ----------------------------------------
+function buildIndex() {
+  const groups = listGroups();
+  const rows = groups.length
+    ? groups.map(g => '      <li><a href="g/' + encodeURIComponent(g.id) + '/">' + htmlEscape(g.name) + '</a></li>').join('\n')
+    : '      <li class="empty">No groups yet.</li>';
+  fs.writeFileSync(path.join(ROOT, 'index.html'), render('index-list.template.html', { ROWS: rows }));
+  fs.writeFileSync(path.join(ROOT, 'sw.js'), ROOT_SW);
+  // The root is no longer an installable PWA.
+  try { fs.unlinkSync(path.join(ROOT, 'manifest.json')); } catch (e) {}
+}
+
+// --- operations ----------------------------------------------------------
 function addGroup(name) {
   const disp = displayName(name);
   if (!disp) return { status: 'EMPTY' };
@@ -140,12 +154,11 @@ function addGroup(name) {
     return { status: 'COLLISION', id: id, name: disp, collidesWith: existing.name };
   }
   buildGroup(id, disp);
-  appendGroupsMd(id, disp);
+  buildIndex(); // regenerate the root list from ground truth
   return { status: 'CREATED', id: id, name: disp };
 }
 
 function rebuildAll() {
-  buildRoot();
   let n = 0;
   if (fs.existsSync(GROUPS_DIR)) {
     for (const id of fs.readdirSync(GROUPS_DIR)) {
@@ -153,21 +166,21 @@ function rebuildAll() {
       if (g) { buildGroup(g.id, g.name); n++; }
     }
   }
+  buildIndex();
   return n;
 }
 
 // --- cli -----------------------------------------------------------------
 const [cmd, arg] = process.argv.slice(2);
-if (cmd === 'build-root') {
-  buildRoot();
-  console.error('built root');
+if (cmd === 'build-index' || cmd === 'build-root') {
+  buildIndex();
+  console.error('built root index');
 } else if (cmd === 'add-group') {
-  const result = addGroup(arg || '');
-  process.stdout.write(JSON.stringify(result) + '\n');
+  process.stdout.write(JSON.stringify(addGroup(arg || '')) + '\n');
 } else if (cmd === 'rebuild-all') {
   const n = rebuildAll();
-  console.error('rebuilt root + ' + n + ' group(s)');
+  console.error('rebuilt ' + n + ' group(s) + root index');
 } else {
-  console.error('usage: generate.js build-root | add-group "<name>" | rebuild-all');
+  console.error('usage: generate.js build-index | add-group "<name>" | rebuild-all');
   process.exit(1);
 }
