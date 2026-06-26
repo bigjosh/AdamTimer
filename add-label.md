@@ -20,21 +20,3 @@ group's name.
 > **Note:** the name is permanent (it's baked into the link and QR code), so
 > check the spelling before submitting. If a name is ever rejected as a
 > duplicate, just submit again with a slightly different name.
-
----
-
-## One-time setup: the "New Group" label
-
-The link above tags each request with a **New Group** label so they're easy to
-find later. The label is created and maintained automatically, so you normally
-don't need to do anything. If it's ever missing, here's how to recreate it by
-hand:
-
-1. Open the repository: **https://github.com/bigjosh/AdamTimer**
-2. Click the **Issues** tab.
-3. Click **Labels** (next to the search box).
-4. Click the green **New label** button.
-5. For **Label name**, type: `New Group`
-6. Optionally add a description (e.g. *Creates a new AdamTimer group bundle*) and
-   pick a color.
-7. Click **Create label**.
