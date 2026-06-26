@@ -1332,8 +1332,8 @@
   }
 
   function showInstallScreen() {
-    var name = (window.APP && window.APP.group && window.APP.group.name) || 'this timer';
-    var nameEls = document.querySelectorAll('.install-app-name');
+    var name = (window.APP && window.APP.group && window.APP.group.name) || 'Meditation Timer';
+    var nameEls = document.querySelectorAll('.install-group-name');
     for (var i = 0; i < nameEls.length; i++) nameEls[i].textContent = name;
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('install-screen').classList.add('active');

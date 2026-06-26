@@ -71,10 +71,10 @@ html, body {
 .install-steps li {
   margin-bottom: 12px;
 }
-.install-share-icon {
+.install-icon-inline {
   color: #4da3ff;
-  vertical-align: -4px;
-  margin: 0 1px;
+  vertical-align: -5px;
+  margin: 0 2px;
 }
 
 .screen.fade-in {
