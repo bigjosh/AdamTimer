@@ -34,6 +34,49 @@ html, body {
   pointer-events: auto;
 }
 
+/* iOS Safari install gate */
+#install-screen {
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding-top: max(env(safe-area-inset-top, 20px), 32px);
+  text-align: center;
+}
+.install-icon {
+  border-radius: 18px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  margin-bottom: 16px;
+}
+.install-title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0;
+}
+.install-sub {
+  color: #9a9a9a;
+  margin: 2px 0 26px;
+  font-size: 1rem;
+}
+.install-lead {
+  font-size: 1.1rem;
+  margin: 0 0 20px;
+}
+.install-steps {
+  text-align: left;
+  max-width: 330px;
+  margin: 0 auto;
+  padding-left: 26px;
+  line-height: 1.65;
+  font-size: 1.08rem;
+}
+.install-steps li {
+  margin-bottom: 12px;
+}
+.install-share-icon {
+  color: #4da3ff;
+  vertical-align: -4px;
+  margin: 0 1px;
+}
+
 .screen.fade-in {
   animation: fadeIn 500ms ease forwards;
 }
