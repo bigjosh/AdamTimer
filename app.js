@@ -417,9 +417,7 @@
   // within the standalone context, so localStorage is safe here — it never
   // needs to cross the Safari <-> standalone storage boundary.
   function logInstalledOnFirstLaunch() {
-    var standalone = window.navigator.standalone === true ||
-      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-    if (!standalone) return;
+    if (!isStandalone()) return;
     try {
       if (localStorage.getItem('meditation-installed') === '1') return;
       localStorage.setItem('meditation-installed', '1');
@@ -1310,12 +1308,45 @@
     deferredInstallPrompt = null;
   });
 
-  // iOS detection — no install prompt API, show manual instructions
+  // --- iOS install gate ---
+  // On iOS, only Safari gives an installed web app its OWN storage, separate
+  // from the browser tab. That split is what causes "asked for email twice" and
+  // lost group context. So we FORCE iOS *Safari* users to install before using
+  // the timer. Other iOS browsers (Chrome/Firefox/Edge/in-app) keep one shared
+  // storage whether "installed" (a bookmark) or not, so there's nothing to
+  // force — they just get the optional Add-to-Home-Screen hint in the menu.
+  function isIOSDevice() {
+    return (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
+  }
+  function isStandalone() {
+    return window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  }
+  function isIOSSafari() {
+    var ua = navigator.userAgent;
+    // Real Safari has both "Safari" and "Version/"; every other iOS browser and
+    // in-app webview carries a distinguishing token (or lacks "Version/").
+    return /Safari/.test(ua) && /Version\//.test(ua) &&
+      !/(CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|GSA|FBAN|FBAV|FBIOS|Instagram|Line|MicroMessenger|Snapchat|Twitter|Pinterest|LinkedIn)/.test(ua);
+  }
+
+  function showInstallScreen() {
+    var name = (window.APP && window.APP.group && window.APP.group.name) || 'this timer';
+    var nameEls = document.querySelectorAll('.install-app-name');
+    for (var i = 0; i < nameEls.length; i++) nameEls[i].textContent = name;
+    document.getElementById('loading-screen').classList.remove('active');
+    document.getElementById('install-screen').classList.add('active');
+  }
+
+  var installGated = false;
   (function () {
-    const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
-    const isStandalone = window.navigator.standalone === true;
-    if (isIOS && !isStandalone) {
-      menuIosEl.style.display = '';
+    if (!isIOSDevice() || isStandalone()) return;   // desktop/Android, or already installed
+    if (isIOSSafari()) {
+      installGated = true;       // boot skips the timer; install-screen takes over
+      showInstallScreen();
+    } else {
+      menuIosEl.style.display = '';   // non-Safari iOS: optional hint, no forcing
     }
   })();
 
@@ -1369,6 +1400,7 @@
   Promise.all(PRECACHE_ASSETS.map(function (url) {
     return fetch(assetUrl(url)).catch(function () {});
   })).then(function () {
+    if (installGated) return;   // iOS Safari, not installed: install-screen is showing
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('start-screen').classList.add('active');
     onStartScreenActivated();
