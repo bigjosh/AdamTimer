@@ -113,3 +113,14 @@ jobs:
             git commit -m "Regenerate bundles from templates"
             git push || (git pull --rebase origin main && git push)
           fi
+
+  ensure-label:
+    # Create/maintain the "New Group" label (so the prefilled deep link can apply
+    # it). Idempotent and self-healing; runs on every trigger.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure "New Group" label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh label create "New Group" --color "1f6feb" --description "Creates a new AdamTimer group bundle" --force
