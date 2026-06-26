@@ -79,6 +79,20 @@ html, body {
 .install-hint {
   color: #9a9a9a;
 }
+.install-return-note {
+  max-width: 340px;
+  margin: 0 auto 22px;
+  padding: 12px 14px;
+  border: 1px solid #34506e;
+  background: #14202c;
+  border-radius: 10px;
+  color: #cfe3ff;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+.install-return-note[hidden] {
+  display: none;
+}
 
 .screen.fade-in {
   animation: fadeIn 500ms ease forwards;
