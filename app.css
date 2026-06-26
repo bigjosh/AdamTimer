@@ -76,6 +76,9 @@ html, body {
   vertical-align: -5px;
   margin: 0 2px;
 }
+.install-hint {
+  color: #9a9a9a;
+}
 
 .screen.fade-in {
   animation: fadeIn 500ms ease forwards;
