@@ -1335,6 +1335,16 @@
     var name = (window.APP && window.APP.group && window.APP.group.name) || 'Meditation Timer';
     var nameEls = document.querySelectorAll('.install-group-name');
     for (var i = 0; i < nameEls.length; i++) nameEls[i].textContent = name;
+    // On a repeat Safari visit, gently remind them they may have already added it
+    // (this Safari tab's localStorage persists across visits). Never blocks — the
+    // steps below stay usable for a genuine (re)install.
+    try {
+      if (localStorage.getItem('meditation-install-seen') === '1') {
+        var note = document.getElementById('install-return-note');
+        if (note) note.hidden = false;
+      }
+      localStorage.setItem('meditation-install-seen', '1');
+    } catch (e) {}
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('install-screen').classList.add('active');
   }
