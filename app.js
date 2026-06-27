@@ -493,17 +493,17 @@
     });
     uniqueDates.sort();
 
-    // Current streak: walk backwards from today
+    // Current streak: walk backwards from today, counting consecutive days
+    // meditated. Today is still in progress, so a missing today does NOT break
+    // the streak — start from yesterday in that case (#28).
     var currentStreak = 0;
     var check = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    while (true) {
-      var cs = toLocalDateStr(check);
-      if (seen[cs]) {
-        currentStreak++;
-        check.setDate(check.getDate() - 1);
-      } else {
-        break;
-      }
+    if (!seen[toLocalDateStr(check)]) {
+      check.setDate(check.getDate() - 1);
+    }
+    while (seen[toLocalDateStr(check)]) {
+      currentStreak++;
+      check.setDate(check.getDate() - 1);
     }
 
     // Longest streak
