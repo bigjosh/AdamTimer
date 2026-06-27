@@ -23,10 +23,10 @@ concurrency:
 
 jobs:
   new-group:
-    # Only act on issues titled "New group" that ALSO carry the "New Group"
-    # label. Applying a label requires triage/write access, so this gates group
-    # creation to authorized collaborators and ignores anyone else.
-    if: ${{ github.event_name == 'issues' && github.event.issue.title == 'New group' && contains(github.event.issue.labels.*.name, 'New Group') }}
+    # Act on any issue carrying the "New Group" label; the issue TITLE is the
+    # group name. Applying a label requires triage/write access, so this gates
+    # group creation to authorized collaborators and ignores anyone else.
+    if: ${{ github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'New Group') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,9 +34,9 @@ jobs:
       - name: Generate bundle from issue
         id: gen
         env:
-          # Untrusted issue body -> passed via env (never interpolated into the
+          # Untrusted issue title -> passed via env (never interpolated into the
           # shell) and consumed as a quoted argv. generate.js escapes it for HTML/JSON.
-          GROUP_NAME: ${{ github.event.issue.body }}
+          GROUP_NAME: ${{ github.event.issue.title }}
         run: |
           node tools/generate.js add-group "$GROUP_NAME" > result.json
           cat result.json
