@@ -1042,8 +1042,9 @@
 
     try { noSleep && noSleep.disable(); } catch (e) { /* ignore */ }
 
-    // Build stats
-    statTotal.textContent = fmt(sessionData.meditation);
+    // Build stats — show the meditation time actually completed (what gets
+    // logged), not the configured duration; they differ when ending early.
+    statTotal.textContent = fmt(sessionData.meditationCompleted);
 
     // Show/hide additional time
     if (meditationStartTime && (!endedEarly || getAdditionalSeconds() > 0)) {
