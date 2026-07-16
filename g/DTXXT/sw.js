@@ -1,10 +1,15 @@
-const META_CACHE_NAME = 'meditation-meta';
+const SCOPE_PATH = new URL(self.registration.scope).pathname;
+// Cache Storage is ORIGIN-scoped, shared by every group's service worker, so
+// every cache name carries this scope's path. Without the suffix, two group
+// apps used in the same browser would fight over one meta record and delete
+// each other's staged updates.
+const CACHE_SUFFIX = '::' + SCOPE_PATH;
+const META_CACHE_NAME = 'meditation-meta' + CACHE_SUFFIX;
 const META_REQUEST = new Request(new URL('__sw_meta__', self.registration.scope).toString());
-const DEFAULT_ACTIVE_CACHE = 'meditation-cache-active';
+const DEFAULT_ACTIVE_CACHE = 'meditation-cache-active' + CACHE_SUFFIX;
 const APP_SHELL_CACHE_REQUEST = new Request(new URL('__app_shell__', self.registration.scope).toString());
 const INDEX_URL = new URL('index.html', self.registration.scope).toString();
 const INDEX_PATH = new URL('index.html', self.registration.scope).pathname;
-const SCOPE_PATH = new URL(self.registration.scope).pathname;
 const STATIC_ASSET_URLS = [
   'manifest.json',
   '../../app.js',
@@ -26,6 +31,16 @@ const STATIC_ASSET_URLS = [
 });
 
 let updateCheckInFlight = null;
+
+// In-memory meta so the fetch handler doesn't hit Cache Storage twice per
+// request. Reset whenever meta is written; the SW being killed and restarted
+// simply re-reads on the next request.
+let metaPromise = null;
+
+function getMeta() {
+  if (!metaPromise) metaPromise = readMeta();
+  return metaPromise;
+}
 
 function defaultMeta() {
   return {
@@ -64,6 +79,7 @@ async function writeMeta(meta) {
       headers: { 'Content-Type': 'application/json' }
     })
   );
+  metaPromise = null;
 }
 
 async function ensureMeta() {
@@ -82,6 +98,16 @@ function getCacheKey(request, url) {
   return isAppShellRequest(request, url) ? APP_SHELL_CACHE_REQUEST : request;
 }
 
+// Bare names from before per-scope namespacing (including 'meditation-v3',
+// which app.js used to write sounds into). Safe to clear from any group's SW:
+// a not-yet-updated sibling SW just falls back to network and re-caches.
+function isLegacyCacheName(name) {
+  return name === 'meditation-meta' ||
+    name === 'meditation-cache-active' ||
+    name === 'meditation-v3' ||
+    /^meditation-cache-pending-\d+$/.test(name);
+}
+
 async function cleanupCaches(meta) {
   var keep = {};
   keep[META_CACHE_NAME] = true;
@@ -91,6 +117,11 @@ async function cleanupCaches(meta) {
   var keys = await caches.keys();
   await Promise.all(keys.map(function (key) {
     if (keep[key]) return Promise.resolve(false);
+    // Only touch this scope's caches (plus legacy bare names) — other groups'
+    // caches share the origin and are NOT ours to delete.
+    if (key.slice(-CACHE_SUFFIX.length) !== CACHE_SUFFIX && !isLegacyCacheName(key)) {
+      return Promise.resolve(false);
+    }
     return caches.delete(key);
   }));
 }
@@ -126,6 +157,8 @@ async function stagePendingCache(cacheName, latestIndexResponse) {
 
 async function hasValidPendingCache(meta) {
   if (!meta.pendingCache) return false;
+  // caches.open() would CREATE a missing cache as a side effect; check first.
+  if (!(await caches.has(meta.pendingCache))) return false;
 
   var cache = await caches.open(meta.pendingCache);
   var shell = await cache.match(APP_SHELL_CACHE_REQUEST);
@@ -164,7 +197,7 @@ async function checkForUpdate() {
 
     if (currentHtml === latestHtml) return false;
 
-    var pendingCache = 'meditation-cache-pending-' + Date.now();
+    var pendingCache = 'meditation-cache-pending-' + Date.now() + CACHE_SUFFIX;
     await stagePendingCache(pendingCache, latestIndexResponse);
 
     meta.pendingCache = pendingCache;
@@ -199,8 +232,42 @@ async function applyPendingUpdate() {
   return { applied: true };
 }
 
+// Precache the full asset set at install so the app works offline from its
+// FIRST launch (on iOS the installed app starts with a completely empty
+// storage context). If any fetch fails — e.g. installing while offline — the
+// install aborts and a previously active SW (with its caches) stays in place;
+// the browser retries on a later registration.
+async function precacheAll() {
+  var meta = await readMeta();
+  var cache = await caches.open(meta.activeCache);
+
+  var shell = await cache.match(APP_SHELL_CACHE_REQUEST);
+  if (!shell) {
+    var indexResponse = await fetch(new Request(INDEX_URL, { cache: 'no-store' }));
+    if (!indexResponse || indexResponse.status !== 200) {
+      throw new Error('Failed to fetch index.html for precache');
+    }
+    await cache.put(APP_SHELL_CACHE_REQUEST, indexResponse);
+  }
+
+  for (var i = 0; i < STATIC_ASSET_URLS.length; i++) {
+    var assetUrl = STATIC_ASSET_URLS[i];
+    var existing = await cache.match(assetUrl);
+    if (existing) continue;
+    await cacheNetworkResponse(
+      cache,
+      new Request(assetUrl),
+      new Request(assetUrl, { cache: 'no-store' })
+    );
+  }
+}
+
 self.addEventListener('install', function (event) {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    precacheAll().then(function () {
+      return self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', function (event) {
@@ -219,12 +286,15 @@ self.addEventListener('message', function (event) {
   if (!port || !data.type) return;
 
   if (data.type === 'CHECK_FOR_UPDATE') {
+    // Answer AFTER the check (and any staging) completes so the update button
+    // can appear on the same visit. If staging outlasts the client's timeout,
+    // the flag is already stored for the next visit.
     event.waitUntil(
       readMeta().then(function (meta) {
-        if (!meta.updateAvailable) {
-          checkForUpdate();
-        }
-        port.postMessage({ available: !!meta.updateAvailable });
+        if (meta.updateAvailable) return true;
+        return checkForUpdate();
+      }).then(function (available) {
+        port.postMessage({ available: !!available });
       }).catch(function () {
         port.postMessage({ available: false });
       })
@@ -251,7 +321,7 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== location.origin) return;
 
   event.respondWith((async function () {
-    var meta = await readMeta();
+    var meta = await getMeta();
     var cache = await caches.open(meta.activeCache);
     var cacheKey = getCacheKey(request, url);
     var cached = await cache.match(cacheKey);

@@ -7,9 +7,9 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | Column | Field |
 |--------|-------|
 | A | Timestamp (server-side, when the row was written) |
-| B | Action (`"session"`, `"install"`, `"installed"`, or `"changed"` - see Action Types below) |
+| B | Action (`"session"`, `"install"`, or `"installed"` - see Action Types below) |
 | C | User ID (stable per-device identifier, randomly generated on first pageload) |
-| D | Date (ISO string from the client; session start time for `session`, log time for `install` / `installed` / `changed`) |
+| D | Date (ISO string from the client; session start time for `session`, log time for `install` / `installed`) |
 | E | Version (log payload format version) |
 | F | Lead In (configured duration in seconds) |
 | G | Meditation (configured duration in seconds) |
@@ -21,8 +21,9 @@ This Apps Script receives session data from the Meditation Timer app via POST an
 | M | Lead Out Completed (seconds of lead out actually completed) |
 | N | Meditation Logged (seconds the user chose to log, may include additional time) |
 | O | Email Address (optional, provided by the user) |
-| P | Group ID (optional, supplied via URL query string and sticky across loads) |
-| Q | Launch URL (diagnostic; the URL an `installed` event launched from) |
+| P | Group ID (baked into the group's page bundle; see spec.md "Per-group bundles") |
+
+(Older sheets may have a leftover `Launch URL` column Q from a removed feature; the script no longer writes it and leaves the column untouched.)
 
 ## Action Types
 
@@ -32,10 +33,13 @@ Every row populates the common fields: User ID (C), Date (D), Version (E), and â
 |--------|---------------|------------------------|
 | `session` | User logs a meditation session (clicks "Yes" or the "+" additional time button) | Session fields F-N (durations and completed/paused times); Date (D) reflects the session start time |
 | `install` | User installs the PWA on their device (browser `appinstalled` event; **not fired on iOS Safari**) | None; columns F-N are blank |
-| `installed` | First launch of the app as an installed PWA (fires once per install; covers iOS, where `install` is unavailable) | None; columns F-N are blank |
-| `changed` | A URL query string replaces the stored group-id | Group ID (P) contains the **old** (pre-switch) group-id; columns F-N are blank |
+| `installed` | First launch of the app as an installed PWA (fires once per install of each group's app; covers iOS, where `install` is unavailable) | None; columns F-N are blank |
 
 If you already have an older sheet without the email column, the updated script rewrites row 1 with the new header set before appending data.
+
+## Duplicate handling
+
+The client delivers events **at least once**: a queued event is retried until a POST resolves, so the same event can occasionally arrive twice (e.g. the app was closed after the request landed but before the queue was updated). The script drops a POST whose `(Action, User ID, Date)` triple matches one of the last 200 rows, so the sheet stays duplicate-free without any client coordination. Events older than that window are appended without checking â€” if you ever see repeats in analysis, dedupe on those same three columns.
 
 The script now writes to the first sheet in the spreadsheet by default. If you want a specific tab, set `SHEET_NAME` in `appscript.js`.
 

@@ -75,6 +75,61 @@
 
   var SHEET_URL = 'https://script.google.com/macros/s/AKfycbztPI-tkV2t_d3e7QQv_WZ7kOL8QWu5cmrsss8vTc2W8bpJDX9MS4lXWPFV_0F5_LX3sw/exec';
 
+  // --- User ID / Group ID ---
+  var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
+
+  function generateUserId() {
+    var s = '';
+    for (var i = 0; i < 10; i++) s += ZBASE32[Math.floor(Math.random() * 32)];
+    return s;
+  }
+
+  function initUserId() {
+    try {
+      var stored = localStorage.getItem('meditation-user-id');
+      if (stored) return stored;
+      var legacy = localStorage.getItem('meditation-source');
+      if (legacy) {
+        localStorage.setItem('meditation-user-id', legacy);
+        localStorage.removeItem('meditation-source');
+        return legacy;
+      }
+    } catch (e) {}
+    var generated = generateUserId();
+    try { localStorage.setItem('meditation-user-id', generated); } catch (e) {}
+    return generated;
+  }
+
+  var appUserId = initUserId();
+  // Group id is baked into the page by the generator; see window.APP.
+  var appGroupId = (window.APP && window.APP.group && window.APP.group.id) || '';
+
+  // localStorage is origin-scoped, so on shared-storage platforms (Android,
+  // desktop, iOS Safari-the-browser) every /g/<id>/ bundle sees the same
+  // storage. Keys that belong to the GROUP (history, install flags) carry the
+  // group id; keys that belong to the PERSON (user id, email, durations,
+  // sounds) stay bare and are deliberately shared across groups.
+  function groupKey(base) {
+    return appGroupId ? base + ':' + appGroupId : base;
+  }
+
+  // One-time upgrade: pre-namespacing installs stored group-owned state under
+  // bare keys. The first group bundle that runs after the upgrade claims that
+  // data (on installed iOS every app has its own private copy, so each app
+  // claims its own; on shared-storage platforms first-visited wins).
+  (function migrateGroupScopedStorage() {
+    if (!appGroupId) return;
+    ['meditation-history', 'meditation-installed', 'meditation-install-seen'].forEach(function (base) {
+      try {
+        if (localStorage.getItem(groupKey(base)) !== null) return;
+        var legacy = localStorage.getItem(base);
+        if (legacy === null) return;
+        localStorage.setItem(groupKey(base), legacy);
+        localStorage.removeItem(base);
+      } catch (e) { /* private browsing */ }
+    });
+  })();
+
   var audioLeadIn, audioMeditation, audioLeadOut;
 
   let noSleep;
@@ -171,9 +226,13 @@
         }
 
         var channel = new MessageChannel();
+        // Generous timeout: CHECK_FOR_UPDATE now answers only after the
+        // background check (and possibly asset staging) completes, so the
+        // update button can appear on the same visit. A slow network just
+        // times out here and the button shows on the next visit instead.
         var timeout = setTimeout(function () {
           reject(new Error('Timed out waiting for service worker response'));
-        }, 5000);
+        }, 15000);
 
         channel.port1.onmessage = function (event) {
           clearTimeout(timeout);
@@ -277,8 +336,8 @@
   }
 
   function maybePromptForEmail() {
-    // Skip if we've already asked, or if an email was inherited from the other
-    // context (Safari <-> installed app) via identity sync.
+    // Skip if we've already asked in this storage context, or an email is
+    // already stored (shared across groups on same-origin platforms).
     if (hasAskedForEmail() || loadEmailAddress()) return;
     openEmailDialog('first-run');
   }
@@ -310,7 +369,7 @@
 
   function loadHistory() {
     try {
-      const h = localStorage.getItem('meditation-history');
+      const h = localStorage.getItem(groupKey('meditation-history'));
       if (!h) return [];
       var arr = JSON.parse(h);
       var migrated = false;
@@ -337,7 +396,7 @@
         }
       });
       if (migrated) {
-        localStorage.setItem('meditation-history', JSON.stringify(arr));
+        localStorage.setItem(groupKey('meditation-history'), JSON.stringify(arr));
       }
       return arr;
     } catch (e) { return []; }
@@ -352,7 +411,7 @@
         if (entry[k] != null) entry[k] = Math.round(entry[k]);
       });
       history.push(entry);
-      localStorage.setItem('meditation-history', JSON.stringify(history));
+      localStorage.setItem(groupKey('meditation-history'), JSON.stringify(history));
     } catch (e) { /* ignore */ }
   }
 
@@ -413,37 +472,56 @@
 
   // Fired once, on the first time the app is launched as an installed PWA.
   // This is distinct from the 'install' action (the browser's appinstalled
-  // event), which iOS never fires. The "already logged" flag lives entirely
-  // within the standalone context, so localStorage is safe here — it never
-  // needs to cross the Safari <-> standalone storage boundary.
+  // event), which iOS never fires. The "already logged" flag is group-scoped:
+  // on shared-storage platforms (Android WebAPK shares the browser's origin
+  // storage) a bare flag set by one group's install would suppress the
+  // 'installed' event for every group installed after it.
   function logInstalledOnFirstLaunch() {
     if (!isStandalone()) return;
     try {
-      if (localStorage.getItem('meditation-installed') === '1') return;
-      localStorage.setItem('meditation-installed', '1');
+      if (localStorage.getItem(groupKey('meditation-installed')) === '1') return;
+      localStorage.setItem(groupKey('meditation-installed'), '1');
     } catch (e) { /* if storage is unavailable, fall through and log once */ }
     enqueueAndFlush(createLogPayload('installed'));
   }
 
+  // At-least-once delivery: an item is only removed from the queue AFTER the
+  // POST resolves, so an event can be sent twice (e.g. page killed after the
+  // request lands but before the queue is rewritten, or two open group pages
+  // flushing the shared queue). (action, userId, date) identifies an event;
+  // the Apps Script endpoint dedupes repeats on that key. Note no-cors means
+  // an HTTP error still "resolves" — we can't tell a 500 from a 200 — so
+  // delivery is best-effort past the network layer.
+  var postQueueFlushing = false;
+
   function flushPostQueue() {
-    if (!SHEET_URL) return;
+    if (!SHEET_URL || postQueueFlushing) return;
     var queue = loadPostQueue();
     if (!queue.length) return;
+    postQueueFlushing = true;
 
-    var item = queue.shift();
-    savePostQueue(queue);
-
+    var item = queue[0];
     fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(item)
     }).then(function () {
+      // Re-load before removing so an enqueue that happened mid-flight
+      // isn't clobbered by saving a stale copy of the queue.
+      var fresh = loadPostQueue();
+      var idx = fresh.findIndex(function (q) {
+        return q.action === item.action && q.userId === item.userId && q.date === item.date;
+      });
+      if (idx !== -1) {
+        fresh.splice(idx, 1);
+        savePostQueue(fresh);
+      }
+      postQueueFlushing = false;
       flushPostQueue();
     }).catch(function () {
-      queue = loadPostQueue();
-      queue.unshift(item);
-      savePostQueue(queue);
+      // Network failure: leave the item queued; retried on next load/online.
+      postQueueFlushing = false;
     });
   }
 
@@ -476,8 +554,9 @@
     });
 
     var now = new Date();
-    var cutoff = new Date(now);
-    cutoff.setDate(cutoff.getDate() - 14);
+    // Last 14 calendar days including today (midnight 13 days ago), matching
+    // the daily graph's window — not a rolling 14x24h cutoff.
+    var cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
     var recentMeditationSec = 0;
     history.forEach(function (s) {
       if (new Date(s.date) >= cutoff) {
@@ -1157,17 +1236,6 @@
     try { localStorage.setItem('meditation-sounds', JSON.stringify(obj)); } catch (e) {}
   }
 
-  function cacheAllSounds() {
-    if (!('caches' in window)) return;
-    caches.open('meditation-v3').then(function (cache) {
-      SOUND_OPTIONS.forEach(function (opt) {
-        cache.match(assetUrl(opt.file)).then(function (cached) {
-          if (!cached) cache.add(assetUrl(opt.file));
-        });
-      });
-    });
-  }
-
   function populateSoundSelects(settings) {
     [soundLeadInSelect, soundMeditationSelect, soundLeadOutSelect].forEach(function (sel) {
       sel.innerHTML = '';
@@ -1268,17 +1336,35 @@
   });
 
   // --- Force update ---
+  // Scoped to THIS group's app: cache names carry a '::<scope path>' suffix
+  // (see sw.template.js) and the Cache Storage / registration APIs are
+  // origin-wide, so a blanket wipe here would destroy every other group's
+  // offline data on shared-storage platforms. Bare legacy names (from before
+  // namespacing) are fair game for cleanup.
+  function isThisAppCacheName(name) {
+    var scopePath = new URL('.', location.href).pathname;
+    if (name.slice(-('::' + scopePath).length) === '::' + scopePath) return true;
+    return name === 'meditation-meta' || name === 'meditation-cache-active' ||
+      name === 'meditation-v3' || /^meditation-cache-pending-\d+$/.test(name);
+  }
+
   menuUpdateBtn.addEventListener('click', async () => {
+    if (!navigator.onLine) {
+      // Wiping caches while offline would leave nothing to reload from.
+      menuUpdateBtn.textContent = 'Offline \u2014 try again later';
+      setTimeout(function () { menuUpdateBtn.textContent = 'Update'; }, 2500);
+      return;
+    }
     menuUpdateBtn.textContent = 'Updating\u2026';
     menuUpdateBtn.style.opacity = '0.4';
     menuUpdateBtn.style.pointerEvents = 'none';
     try {
       var keys = await caches.keys();
-      await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      await Promise.all(keys.filter(isThisAppCacheName).map(function (k) { return caches.delete(k); }));
     } catch (e) {}
     try {
-      var regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(function (r) { return r.unregister(); }));
+      var reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.unregister();
     } catch (e) {}
     location.reload();
   });
@@ -1339,11 +1425,11 @@
     // (this Safari tab's localStorage persists across visits). Never blocks — the
     // steps below stay usable for a genuine (re)install.
     try {
-      if (localStorage.getItem('meditation-install-seen') === '1') {
+      if (localStorage.getItem(groupKey('meditation-install-seen')) === '1') {
         var note = document.getElementById('install-return-note');
         if (note) note.hidden = false;
       }
-      localStorage.setItem('meditation-install-seen', '1');
+      localStorage.setItem(groupKey('meditation-install-seen'), '1');
     } catch (e) {}
     document.getElementById('loading-screen').classList.remove('active');
     document.getElementById('install-screen').classList.add('active');
@@ -1360,44 +1446,15 @@
     }
   })();
 
-  // --- User ID ---
-  var ZBASE32 = 'ybndrfg8ejkmcpqxot1uwisza345h769';
-
-  function generateUserId() {
-    var s = '';
-    for (var i = 0; i < 10; i++) s += ZBASE32[Math.floor(Math.random() * 32)];
-    return s;
-  }
-
-  function initUserId() {
-    try {
-      var stored = localStorage.getItem('meditation-user-id');
-      if (stored) return stored;
-      var legacy = localStorage.getItem('meditation-source');
-      if (legacy) {
-        localStorage.setItem('meditation-user-id', legacy);
-        localStorage.removeItem('meditation-source');
-        return legacy;
-      }
-    } catch (e) {}
-    var generated = generateUserId();
-    try { localStorage.setItem('meditation-user-id', generated); } catch (e) {}
-    return generated;
-  }
-
-  // --- Group ID (baked into the page by the generator; see window.APP) ---
-  function initGroupId() {
-    return (window.APP && window.APP.group && window.APP.group.id) || '';
-  }
-
-  var appUserId = initUserId();
-  var appGroupId = initGroupId();
-
   // Log the first launch as an installed PWA (covers iOS, which never fires
   // the appinstalled event).
   logInstalledOnFirstLaunch();
 
   // --- Init ---
+  // Small assets the start/timer screens need right away. Fetching them here
+  // warms the SW runtime cache and gates the loading screen. The full asset
+  // set (including the multi-MB sounds) is precached by the service worker's
+  // install step, so it is NOT re-listed here.
   var PRECACHE_ASSETS = [
     'sand.jpg',
     'sea.jpg',
@@ -1405,7 +1462,7 @@
     'icon-512.png',
     'favicon.svg',
     'NoSleep.min.js'
-  ].concat(SOUND_OPTIONS.map(function (o) { return o.file; }));
+  ];
 
   Promise.all(PRECACHE_ASSETS.map(function (url) {
     return fetch(assetUrl(url)).catch(function () {});
@@ -1419,7 +1476,6 @@
 
   loadSettings();
   populateSoundSelects(loadSoundSettings());
-  cacheAllSounds();
   createSessionAudio();
   validateInputs();
   window.addEventListener('appinstalled', logInstall);
