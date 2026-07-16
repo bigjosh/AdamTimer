@@ -76,8 +76,16 @@ function render(tplName, subs) {
   return s;
 }
 function buildVersion() {
+  // Everything the service worker caches (or that shapes the generated pages)
+  // feeds the hash — an asset-only change (say, a new sand.jpg) must still
+  // bump the build comment in index.html, since that comment is the update
+  // signal the SW watches.
   const h = crypto.createHash('sha256');
   for (const rel of ['app.js', 'app.css',
+      'sand.jpg', 'sea.jpg', 'icon-192.png', 'icon-512.png', 'favicon.svg',
+      'NoSleep.min.js',
+      'sounds/Gong 1.m4a', 'sounds/Gong 2.wav', 'sounds/Gong 3.wav',
+      'sounds/Gong 4.wav', 'sounds/Gong 5.wav', 'sounds/Wood Block.m4a',
       'templates/index.template.html', 'templates/manifest.template.json',
       'templates/sw.template.js', 'tools/generate.js']) {
     h.update(fs.readFileSync(path.join(ROOT, rel)));

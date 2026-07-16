@@ -5,11 +5,20 @@ on:
     types: [opened, edited, reopened, labeled]
   push:
     branches: [main]
+    # Keep in sync with the buildVersion() file list in tools/generate.js —
+    # anything hashed into the build id must also trigger a rebuild here.
     paths:
       - 'templates/**'
       - 'app.js'
       - 'app.css'
       - 'tools/generate.js'
+      - 'sounds/**'
+      - 'sand.jpg'
+      - 'sea.jpg'
+      - 'icon-192.png'
+      - 'icon-512.png'
+      - 'favicon.svg'
+      - 'NoSleep.min.js'
   workflow_dispatch:
 
 permissions:
