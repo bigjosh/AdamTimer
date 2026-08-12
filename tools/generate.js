@@ -108,7 +108,7 @@ function buildGroup(id, name) {
     BASE: '../../',
     ID: JSON.stringify(id),
     NAME: JSON.stringify('AdamTimer - ' + disp),
-    SHORT_NAME: JSON.stringify('AdamTimer')
+    SHORT_NAME: JSON.stringify('Meditation Timer')
   });
   JSON.parse(manifest); // sanity: must be valid JSON
   fs.writeFileSync(path.join(dir, 'index.html'), html);

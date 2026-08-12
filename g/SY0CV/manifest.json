@@ -1,7 +1,7 @@
 {
   "id": "SY0CV",
   "name": "AdamTimer - Testing",
-  "short_name": "AdamTimer",
+  "short_name": "Meditation Timer",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
